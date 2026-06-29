@@ -5,7 +5,7 @@
 const $ = (id) => document.getElementById(id);
 
 // ¡IMPORTANTE! REEMPLAZA ESTA URL CON LA URL DE TU WEB APP PUBLICADA EN GAS
-const API_URL = 'https://script.google.com/macros/s/AKfycbxHVfQ_xcEM_Au1vcdr6cswhdzasuq6gsa49SviAHK6XzSYHC0Ys3I9TdX5hfTLyMw6/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbw1uQXEyyMSBQUkXmP4RMObLpkdezHwUQAiJCK5cxS9vFfFTRO8KfxJpc_i_Oygg5Nb/exec';
 
 // Variables Globales de Estado
 let usuarioActual = null, rolActual = null, correoTemporal = null;
