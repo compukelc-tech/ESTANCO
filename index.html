@@ -4,6 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Inventario y POS | Estanco</title>
+  
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f0f11">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -218,6 +227,46 @@
       <div class="toggle-link" onclick="mostrarRegistro()">Solicitar acceso al sistema</div>
       <div class="toggle-link" onclick="mostrarOlvido()">¿Olvidaste tus credenciales?</div>
     </div>
+
+    <div id="forgotPasswordForm" class="auth-box" style="display:none;">
+      <div style="color:var(--clr-primary); font-size:14px; font-weight:600; font-family:var(--font-brand);">🔓 Recuperar Contraseña</div>
+      <div class="form-group"><label>Cédula / Documento</label><input type="text" id="forgotDocumento" placeholder="Tu número de documento"></div>
+      <div class="form-group"><label>Correo Electrónico</label><input type="email" id="forgotCorreo" placeholder="correo@ejemplo.com"></div>
+      <button class="btn btn-primary btn-w100" onclick="procesarRecordatorio()">📧 Enviar Recordatorio</button>
+      <div class="toggle-link" onclick="mostrarLogin()">← Regresar al login</div>
+    </div>
+ 
+    <div id="changePasswordForm" class="auth-box" style="display:none; background:var(--clr-warning-light); border:1px solid var(--clr-warning); padding:16px; border-radius:var(--radius-md);">
+      <div style="color:var(--clr-warning); font-size:14px; font-weight:700; font-family:var(--font-brand);">🔒 Cambio de Clave Obligatorio</div>
+      <div style="font-size:11px; color:#92400e;">Tu clave provisional debe actualizarse para continuar.</div>
+      <div class="form-group"><label>Clave Provisional (Actual)</label><div style="display:flex; gap:6px;"><input type="password" id="claveAntigua" style="flex:1;" placeholder="••••••••"><button type="button" class="btn btn-ghost btn-sm" onclick="togglePass('claveAntigua')" style="padding:0 10px;">👁️</button></div></div>
+      <div class="form-group"><label>Nueva Clave Segura</label><div style="display:flex; gap:6px;"><input type="password" id="nuevaClave" onkeyup="checkPasswordComplexity()" style="flex:1;" placeholder="••••••••"><button type="button" class="btn btn-ghost btn-sm" onclick="togglePass('nuevaClave')" style="padding:0 10px;">👁️</button></div>
+        <div class="pass-checklist" id="passChecklist">
+          <div id="chk-len" class="check-item invalid">❌ Mínimo 8 caracteres</div><div id="chk-upp" class="check-item invalid">❌ Una letra mayúscula</div><div id="chk-num" class="check-item invalid">❌ Al menos un número</div><div id="chk-spc" class="check-item invalid">❌ Un carácter especial</div>
+        </div>
+      </div>
+      <div class="form-group"><label>Confirmar Nueva Clave</label><input type="password" id="confirmarClave" placeholder="Repite tu nueva clave"></div>
+      <button class="btn btn-warning btn-w100" onclick="confirmarCambioClave()" style="padding:12px;">✅ Actualizar y Acceder</button>
+    </div>
+ 
+    <div id="registerForm" class="auth-box" style="display:none;">
+      <div style="font-size:14px; font-weight:700; color:var(--text-main); font-family:var(--font-brand);">📝 Solicitar Acceso</div>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+        <div class="form-group"><label>👤 Nombre Completo</label><input type="text" id="regNombre" oninput="sugerirUsuarios()" placeholder="Tu nombre completo"></div>
+        <div class="form-group"><label>📄 Cédula / Documento</label><input type="text" id="regDocumento" oninput="sugerirUsuarios()" placeholder="N° de documento"></div>
+        <div class="form-group"><label>✉️ Correo</label><input type="email" id="regCorreo" placeholder="correo@ejemplo.com"></div>
+        <div class="form-group"><label>💼 Cargo Solicitado</label><select id="regRol"><option value="Cliente">Cliente</option><option value="Usuario">Usuario General</option><option value="Vendedor">Vendedor</option><option value="Administrador">Administrador</option></select></div>
+        <div class="form-group span-2">
+          <div class="user-suggestions-wrap" style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:10px;">
+            <div class="user-suggestions-label" style="font-size:10px; font-family:var(--font-mono); color:var(--clr-primary); font-weight:600; text-transform:uppercase; margin-bottom:8px;">🆔 Sugerencias de Usuario</div>
+            <div id="userSuggestions" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:8px; min-height:28px;"></div>
+            <div style="display:flex; gap:6px; align-items:center;"><input type="text" id="regUsuario" placeholder="O escribe tu usuario personalizado" onkeyup="validarUsuarioRealtime()" style="flex:1;"><span id="userValidIndicator" style="font-size:18px; width:24px; text-align:center; flex-shrink:0;"></span></div>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-w100" onclick="registrarUsuario()" style="padding:12px;">📤 Enviar Solicitud</button>
+      <div class="toggle-link" onclick="mostrarLogin()">← Regresar al login</div>
+    </div>
     <div class="feedback-msg" id="pmsg"></div>
   </div>
 </div>
@@ -230,8 +279,75 @@
   </div>
 </div>
 
+<div id="modalListaFiadores" class="modal-overlay no-print" style="display:none;">
+  <div class="modal-content" style="max-width:680px; width:95%;">
+    <div class="modal-header"><h3>👥 Gestión de Fiadores Registrados</h3></div>
+    <div class="modal-body">
+      <div class="table-responsive" style="max-height:55vh; overflow-y:auto;">
+        <table class="pos-table"><thead><tr><th>Documento</th><th>Nombre Completo</th><th>Estado Crédito</th><th>Acción</th></tr></thead>
+        <tbody id="tbodyTodosLosFiadores"><tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">Cargando...</td></tr></tbody></table>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="cerrarModalFiadores()">Cerrar</button></div>
+  </div>
+</div>
+ 
+<div id="modalNuevoDeudor" class="modal-overlay no-print" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header"><h3>👤 Registrar Nuevo Usuario Deudor</h3></div>
+    <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+      <div class="form-group"><label>Nombre Completo</label><input type="text" id="ndNombre"></div>
+      <div class="form-group"><label>Tipo Documento</label><select id="ndTipoDoc"><option value="CC">CC</option><option value="NIT">NIT</option></select></div>
+      <div class="form-group"><label>Documento Identidad</label><input type="text" id="ndDoc"></div>
+      <div class="form-group"><label>Teléfono</label><input type="text" id="ndTel"></div>
+      <div class="form-group"><label>Dirección</label><input type="text" id="ndDir"></div>
+      <div class="form-group"><label>Correo Electrónico</label><input type="email" id="ndCorreo"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="cerrarModalNuevoDeudor()">Cancelar</button><button class="btn btn-primary" onclick="guardarNuevoDeudorDesdeCartera()">Guardar Deudor</button></div>
+  </div>
+</div>
+ 
+<div id="modalReabastecer" class="modal-overlay no-print" style="display:none;">
+  <div class="modal-content" style="max-width:460px;">
+    <div class="modal-header"><h3>🔄 Reabastecer Artículo</h3></div>
+    <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
+      <div class="form-group"><label>Buscar Artículo (Nombre o SKU)</label><input type="text" id="txtBuscarReabastecer" placeholder="Escribe para buscar..." onkeypress="if(event.key==='Enter') buscarParaReabastecer()"></div>
+      <button class="btn btn-primary btn-w100" onclick="buscarParaReabastecer()">🔍 Buscar Artículo</button>
+      <div id="resReabastecer" style="display:none; padding:16px; background:var(--bg-base); border:1px solid var(--border-color); border-radius:var(--radius-md);">
+        <div class="form-group"><label>Artículo Seleccionado</label><select id="selArticuloReabastecer" onchange="mostrarStockActualReabastecer()"></select></div>
+        <div style="margin-top:12px; padding:10px 12px; background:var(--bg-input); border-radius:6px; border:1px solid var(--border-color);"><span style="font-size:12px; color:var(--text-muted);">Stock Actual:</span><span style="font-size:18px; font-weight:700; color:var(--clr-primary); margin-left:8px; font-family:var(--font-brand);" id="lblStockActualReab">0</span><span style="font-size:12px; color:var(--text-muted);"> uds</span></div>
+        <div class="form-group" style="margin-top:12px;"><label>Cantidad a Ingresar</label><input type="number" id="txtCantReabastecer" min="1" placeholder="Ej: 50"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="cerrarModalReabastecer()">Cancelar</button><button class="btn btn-success" id="btnConfirmarReab" style="display:none;" onclick="confirmarReabastecimiento()">✅ Actualizar Stock</button></div>
+  </div>
+</div>
+ 
+<div id="modalImpresion" class="modal-overlay no-print" style="display:none; z-index:3000;">
+  <div class="modal-content" style="max-width:360px; text-align:center;">
+    <div class="modal-header" style="text-align:center;"><h3>🖨️ Formato de Salida</h3></div>
+    <div class="modal-body" style="display:flex; flex-direction:column; gap:10px; align-items:center;">
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:4px;">Selecciona cómo deseas imprimir:</p>
+      <button class="btn btn-primary btn-w100" onclick="procesarImpresion('a4')" style="padding:13px;">📄 Reporte Estándar (A4)</button>
+      <button class="btn btn-info btn-w100" onclick="procesarImpresion('ticket')" style="padding:13px;">🧾 Ticket Térmico (80mm)</button>
+      <button class="btn btn-ghost btn-w100" onclick="ocultarOpcionesImpresion()" style="margin-top:4px;">✕ Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div id="area-impresion" class="print-area" style="display:none;"></div>
 
 <script src="app.js"></script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('Service Worker PWA registrado con éxito.', reg.scope))
+        .catch(err => console.error('Error al registrar el Service Worker:', err));
+    });
+  }
+</script>
+
 </body>
 </html>
