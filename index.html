@@ -8,18 +8,15 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f0f11">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@400;500;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div id="bannerPublicitarioContainer"></div>
-
 <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <div class="main-content no-print" id="mainContent">
@@ -47,155 +44,18 @@
   </div>
 
   <div class="scrollable-body">
-    
     <div id="lockScreen" class="lock-screen" style="display: flex;">
       <div class="welcome-banner" style="text-align:center;">
-        <h1 style="margin-bottom:10px;">Sistema de Base de Datos</h1>
-        <p style="margin:0 auto; color: var(--text-main);">Plataforma de gestión de inventario y facturación. Identifícate para acceder a las herramientas operativas.</p>
-      </div>
-      <div style="position:relative; width:100%;">
-        <div class="lock-overlay-box"><button class="btn-lock-action" onclick="abrirSidebar()">🔓 Presiona aquí para iniciar sesión</button></div>
-        <div class="welcome-grid">
-          <div class="preview-card blur-effect"><div class="preview-icon" style="background:#e0f2fe; color:#0369a1;">📊</div><div class="card-title">Artículos en Catálogo</div><div class="card-stat">---</div></div>
-          <div class="preview-card blur-effect"><div class="preview-icon" style="background:#dcfce7; color:#15803d;">🛍️</div><div class="card-title">Ventas del Período</div><div class="card-stat">---</div></div>
-          <div class="preview-card blur-effect"><div class="preview-icon" style="background:#fee2e2; color:#b91c1c;">⚠️</div><div class="card-title">Alertas de Stock Bajo</div><div class="card-stat">---</div></div>
-        </div>
+        <h1 style="margin-bottom:10px;">Sistema de Gestión Estanco</h1>
+        <p style="margin:0 auto;">Plataforma integral de inventario y facturación. Identifícate para acceder.</p>
       </div>
     </div>
 
-    <div id="areaDashboard" style="display:none; flex-direction:column; gap:20px; max-width:960px; margin:0 auto; width:100%;">
-      <div class="welcome-banner" style="text-align:center;">
-        <h1 style="margin-bottom:8px;">INVENTARIO</h1>
-        <p style="margin:0 auto;">Selecciona una acción para comenzar tu jornada</p>
-      </div>
-      <div id="dashboardWidgets" class="dashboard-widgets">
-        <div class="widget-card"><h3>⚠️ Stock Crítico</h3><ul id="widgetAlertas"><li>Cargando...</li></ul></div>
-        <div class="widget-card"><h3>🔥 Más Vendidos</h3><ul id="widgetAnalitica"><li>Cargando...</li></ul></div>
-      </div>
-      <div class="welcome-grid" id="dashboardBotones"></div>
-    </div>
-
-    <div id="areaProducto" style="display:none; flex-direction:column; gap:16px; max-width:1200px; margin:0 auto; width:100%;">
-      <div class="section-title" style="color: var(--clr-primary);">✏️ Registrar Nuevo Artículo</div>
-      <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
-        <div class="form-card" id="moduloCalculadora" style="width: 280px; flex-shrink: 0; display: flex; flex-direction: column; gap: 16px; position: sticky; top: 10px;">
-          <div class="section-title" style="font-size: 15px;">🧮 Calculadora Rápida</div>
-          <p style="font-size: 11px; color: var(--text-muted); margin-top: -10px;">Suma un margen al costo base para hallar el precio ideal.</p>
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-            <div class="form-group"><label>Costo Base ($)</label><input type="number" id="calcCostoBase" placeholder="0.00" oninput="calcularPrecioSugerido()" min="0" step="0.01"></div>
-            <div class="form-group"><label>Margen (%)</label><input type="number" id="calcMargen" placeholder="0" oninput="calcularPrecioSugerido()" min="0"></div>
-          </div>
-          <div class="form-group" style="margin-top: 4px;">
-            <label style="text-align: center; font-size: 11px;">Precio Sugerido Final</label>
-            <div id="calcPrecioSugerido" style="background: var(--clr-success-light); border: 1px solid #10b981; border-radius: var(--radius-md); padding: 16px 10px; text-align: center; color: var(--clr-success); font-family: var(--font-brand); font-size: 28px; font-weight: 800; word-break: break-all;">$0.00</div>
-          </div>
-          <button class="btn btn-ghost btn-w100" onclick="limpiarCalculadora()">🔄 Limpiar Campos</button>
-        </div>
-
-        <div class="form-card" style="flex: 1; min-width: 320px;">
-          <div class="form-grid">
-            <div class="form-group"><label>📏 Código SKU</label><input type="text" id="codigoSku" placeholder="Ej: SKU-001"></div>
-            <div class="form-group"><label>🍾 Nombre del Producto</label><input type="text" id="nombreProducto" placeholder="Nombre completo"></div>
-            <div class="form-group"><label>🗂️ Categoría</label><select id="categoria"><option value="Licores Nacionales">Licores Nacionales</option><option value="Licores Importados">Licores Importados</option><option value="Cigarrillos">Cigarrillos</option><option value="Vaper">Vaper</option><option value="Cervezas">Cervezas</option><option value="Snacks">Snacks</option><option value="Otros">Otros</option></select></div>
-            <div class="form-group" id="g-costoCompra"><label>💰 Costo de Compra</label><input type="number" id="costoCompra" placeholder="0.00" min="0" step="0.01"></div>
-            <div class="form-group"><label>🏷️ Precio de Venta</label><input type="number" id="precioVenta" placeholder="0.00" min="0" step="0.01"></div>
-            <div class="form-group"><label>📅 Fecha de Caducidad</label><input type="date" id="fechaCaducidad"></div>
-            <div class="form-group" id="g-valorTotal"><label>📊 Valor Total en Almacén</label><input type="number" id="valorTotal" placeholder="0.00" min="0"></div>
-            <div class="form-group" id="g-proveedor"><label>🤝 Proveedor</label><input type="text" id="proveedor" placeholder="Nombre del proveedor"></div>
-            <div class="form-group" id="g-factura"><label>🧾 N° Factura</label><input type="text" id="numeroFactura" placeholder="Nº de factura"></div>
-            <div class="form-group" id="g-codProd"><label>🔍 Código del Producto (EAN)</label><input type="text" id="codigoProducto" placeholder="Código interno / Barras"></div>
-            <div class="form-group" id="g-cantComp"><label>📈 Cantidad Comprada</label><input type="number" id="cantidadComprada" placeholder="0" min="0"></div>
-            <div class="form-group" id="g-costoTotal"><label>📉 Costo de Compra Total</label><input type="number" id="costoCompraTotal" placeholder="0.00" min="0"></div>
-            <div class="form-group span-3"><label>📝 Descripción Adicional</label><input type="text" id="descripcion" placeholder="Notas, volumen, grados de alcohol, etc."></div>
-          </div>
-          <button class="btn btn-primary btn-w100" id="btnGuardar" onclick="procesarProducto()" style="margin-top:18px; padding:13px;">💾 Guardar Producto en Inventario</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="areaPOS" style="display:none; flex-direction:column; gap:16px; max-width:960px; margin:0 auto; width:100%;">
-      <div class="section-title">🔍 Panel de Búsqueda y Facturación</div>
-      <div class="form-card" style="display:flex; gap:10px; padding:16px; align-items:center;">
-        <input type="text" id="txtBuscarPOS" placeholder="Escribe código SKU, nombre o EAN — Enter para búsqueda rápida..." style="flex:1; padding:12px 14px; border-radius:var(--radius-sm); border:1px solid var(--border-color); font-size:14px; background:var(--bg-input); outline:none; color: var(--text-main);">
-        <button class="btn btn-primary" onclick="ejecutarBusquedaPOS()" style="padding:12px 20px;">🔍 Buscar</button>
-      </div>
-      <div id="wrapTablaResultados" style="display:none;">
-        <div class="table-responsive">
-          <table class="pos-table"><thead><tr id="thDinamicoPOS"></tr></thead><tbody id="tbodyResultadosPOS"></tbody></table>
-        </div>
-      </div>
-      <div id="panelFacturacionPOS" style="display:none;" class="form-card">
-        <div class="section-title" style="font-size:16px; margin-bottom:16px;">🧾 Detalle de Venta</div>
-        <div class="form-grid" style="grid-template-columns:1fr 1fr; margin-bottom:14px;">
-          <div class="form-group"><label>👤 Selector de Cliente</label><select id="selClienteFactura" onchange="alternarBloqueNuevoCliente()"></select></div>
-          <div class="form-group"><label>💳 Método de Pago</label><select id="selTipoPago"><option value="Efectivo">💵 Efectivo</option><option value="Fiar" id="optFiar">📝 Fiado (Crédito)</option></select></div>
-        </div>
-        <div id="subFormClienteNuevo" style="display:none; background:var(--bg-card); padding:16px; border-radius:var(--radius-md); margin-bottom:14px; border:1px solid var(--clr-primary);">
-          <div style="font-size:11px; font-weight:700; color:var(--clr-primary); margin-bottom:10px; font-family:var(--font-mono); text-transform:uppercase;">👤 Registrar Nuevo Comprador</div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-            <input type="text" id="fcNombre" placeholder="Nombre completo" class="form-control-input">
-            <select id="fcTipoDoc" class="form-control-input"><option value="CC">CC</option><option value="NIT">NIT</option><option value="CE">CE</option></select>
-            <input type="text" id="fcDoc" placeholder="N° Documento" class="form-control-input">
-            <input type="text" id="fcTel" placeholder="Teléfono" class="form-control-input">
-            <input type="text" id="fcDir" placeholder="Dirección" class="form-control-input">
-            <input type="email" id="fcCorreo" placeholder="Correo electrónico" class="form-control-input">
-          </div>
-          <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="guardarClientePOS()">✅ Registrar Cliente</button>
-        </div>
-        <div class="table-responsive">
-          <table class="pos-table">
-            <thead><tr><th>SKU</th><th>Artículo</th><th>Precio</th><th>Stock</th><th>Cant.</th><th>Desc(%)</th><th>Subtotal</th><th>Acción</th></tr></thead>
-            <tbody id="tbodyCartPOS"></tbody>
-          </table>
-        </div>
-        <div class="cart-total-row"><div>TOTAL A COBRAR:</div><div style="color:var(--clr-primary); font-family:var(--font-brand);" id="txtTotalCart">$0.00</div></div>
-        <button class="btn btn-success btn-w100" style="padding:14px; font-size:15px; background-color: var(--clr-primary); box-shadow: none;" onclick="finalizarTicketVenta()">⚡ Procesar y Finalizar Venta</button>
-      </div>
-    </div>
-
-    <div id="areaReportes" style="display:none; flex-direction:column; gap:16px; max-width:960px; margin:0 auto; width:100%;">
-      <div class="section-title">📊 Analítica Financiera</div>
-      <div class="form-card" style="display:flex; flex-direction:column; gap:20px;">
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn btn-ghost" onclick="procesarReporteHistorico('dia')">📅 Hoy</button>
-          <button class="btn btn-ghost" onclick="procesarReporteHistorico('semana')">📅 Esta Semana</button>
-          <button class="btn btn-ghost" onclick="procesarReporteHistorico('mes')">📅 Este Mes</button>
-        </div>
-        <div style="padding:24px; background:var(--bg-base); border:1px solid var(--border-color); border-radius:var(--radius-lg); text-align:center;">
-          <div style="font-size:11px; color:var(--text-muted); font-weight:600; margin-bottom:6px; font-family:var(--font-mono);" id="lblFiltroActual">SELECCIONE UN PERÍODO</div>
-          <div style="font-size:36px; font-weight:800; color:var(--clr-primary); font-family:var(--font-brand);" id="txtTotalVentasReporte">$0.00</div>
-          <div style="font-size:10px; color:var(--text-muted); font-weight:600; margin-bottom:20px; font-family:var(--font-mono);">TOTAL DE VENTAS (BRUTO)</div>
-          <div id="cajaDesgloseReporte" class="grid-analisis" style="display:none;">
-            <div class="bloque-dato"><div class="dato-label">Recaudo Efectivo</div><div class="dato-valor" style="color:var(--clr-success);" id="txtTotalReporte">$0.00</div></div>
-            <div class="bloque-dato"><div class="dato-label">Fiado / Cartera</div><div class="dato-valor" style="color:var(--clr-danger);" id="txtFiadoReporte">$0.00</div></div>
-            <div class="bloque-dato"><div class="dato-label">Reinversión (Costo)</div><div class="dato-valor" style="color:var(--clr-warning);" id="txtCostoReporte">$0.00</div></div>
-            <div class="bloque-dato"><div class="dato-label">Ganancia Neta</div><div class="dato-valor" style="color:var(--clr-info);" id="txtGananciaReporte">$0.00</div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div id="areaCartera" style="display:none; flex-direction:column; gap:16px; max-width:960px; margin:0 auto; width:100%;">
-       <div class="section-title">💼 Módulo de Control de Cartera</div>
-       <div class="cartera-total-box">
-         <div style="font-size:11px; color:var(--clr-danger); font-weight:600; margin-bottom:4px; font-family:var(--font-mono);">Valor Cartera Global por Cobrar</div>
-         <div style="font-size:38px; font-weight:800; color:var(--clr-danger); font-family:var(--font-brand);" id="txtTotalCarteraGlobal">$0.00</div>
-       </div>
-       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-         <div style="font-weight:600; font-size:14px; color:var(--text-main);">Clientes con Saldos</div>
-         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-           <button class="btn btn-blue" onclick="abrirModalFiadores()">👥 Gestionar Fiadores</button>
-           <button class="btn btn-success" id="btnNuevoDeudorCartera" onclick="abrirModalNuevoDeudor()" style="display:none;">➕ Registrar Usuario Deudor</button>
-         </div>
-       </div>
-       <div class="table-responsive">
-         <table class="pos-table">
-           <thead><tr><th>Documento</th><th>Nombre Completo</th><th>Valor de la Deuda</th><th>Acciones</th></tr></thead>
-           <tbody id="tbodyCarteraClientes"><tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:24px;">Consultando datos...</td></tr></tbody>
-         </table>
-       </div>
-    </div>
-
+    <div id="areaDashboard" style="display:none;">...</div>
+    <div id="areaProducto" style="display:none;">...</div>
+    <div id="areaPOS" style="display:none;">...</div>
+    <div id="areaReportes" style="display:none;">...</div>
+    <div id="areaCartera" style="display:none;">...</div>
   </div>
 </div>
 
@@ -203,151 +63,32 @@
   <div class="sidebar-header"><h2>🔐 Identificación</h2><button class="close-btn" onclick="toggleSidebar()">✕</button></div>
   <div class="sidebar-scroll">
     <div id="sessionInfo" class="session-card">
-      <div id="siName" style="font-weight:700; font-size:15px; color:var(--text-main);">—</div>
-      <div id="siRole" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">—</div>
+      <div id="siName">—</div>
+      <div id="siRole">—</div>
       <button class="btn btn-danger btn-w100" onclick="cerrarSesion()">🚪 Cerrar Sesión</button>
     </div>
-    
-    <div id="tabsWrap" style="display:none; flex-direction:column; gap:12px;">
-      <div class="tabs-nav" id="tabsNav"><button class="tab-btn active" id="t1" onclick="switchTab(1)">Inicio</button><button class="tab-btn" id="t2" onclick="switchTab(2)">Personal</button></div>
-      <div class="tab-pane active" id="tp1"></div>
-      <div class="tab-pane" id="tp2"><div id="authList" style="display:flex; flex-direction:column; gap:10px;"></div></div>
-    </div>
-    
-    <div id="loginForm" class="auth-box" style="display:flex;">
-      <div class="form-group"><label>👤 Usuario o Correo</label><input type="text" id="loginUsuario" placeholder="Tu usuario o correo" onkeypress="if(event.key==='Enter') iniciarSesion()"></div>
-      <div class="form-group">
-        <label>🔑 Contraseña</label>
-        <div style="display:flex; gap:6px;">
-          <input type="password" id="loginPassword" style="flex:1;" placeholder="••••••••" onkeypress="if(event.key==='Enter') iniciarSesion()">
-          <button type="button" class="btn btn-ghost" onclick="togglePass('loginPassword')" style="padding:0 10px; flex-shrink:0;">👁️</button>
-        </div>
-      </div>
-      <button class="btn btn-primary btn-w100" onclick="iniciarSesion()" style="padding:12px;">→ Ingresar al Sistema</button>
-      <div class="toggle-link" onclick="mostrarRegistro()">Solicitar acceso al sistema</div>
-      <div class="toggle-link" onclick="mostrarOlvido()">¿Olvidaste tus credenciales?</div>
-    </div>
-
-    <div id="forgotPasswordForm" class="auth-box" style="display:none;">
-      <div style="color:var(--clr-primary); font-size:14px; font-weight:600; font-family:var(--font-brand);">🔓 Recuperar Contraseña</div>
-      <div class="form-group"><label>Cédula / Documento</label><input type="text" id="forgotDocumento" placeholder="Tu número de documento"></div>
-      <div class="form-group"><label>Correo Electrónico</label><input type="email" id="forgotCorreo" placeholder="correo@ejemplo.com"></div>
-      <button class="btn btn-primary btn-w100" onclick="procesarRecordatorio()">📧 Enviar Recordatorio</button>
-      <div class="toggle-link" onclick="mostrarLogin()">← Regresar al login</div>
-    </div>
- 
-    <div id="changePasswordForm" class="auth-box" style="display:none; background:var(--clr-warning-light); border:1px solid var(--clr-warning); padding:16px; border-radius:var(--radius-md);">
-      <div style="color:var(--clr-warning); font-size:14px; font-weight:700; font-family:var(--font-brand);">🔒 Cambio de Clave Obligatorio</div>
-      <div style="font-size:11px; color:#92400e;">Tu clave provisional debe actualizarse para continuar.</div>
-      <div class="form-group"><label>Clave Provisional (Actual)</label><div style="display:flex; gap:6px;"><input type="password" id="claveAntigua" style="flex:1;" placeholder="••••••••"><button type="button" class="btn btn-ghost btn-sm" onclick="togglePass('claveAntigua')" style="padding:0 10px;">👁️</button></div></div>
-      <div class="form-group"><label>Nueva Clave Segura</label><div style="display:flex; gap:6px;"><input type="password" id="nuevaClave" onkeyup="checkPasswordComplexity()" style="flex:1;" placeholder="••••••••"><button type="button" class="btn btn-ghost btn-sm" onclick="togglePass('nuevaClave')" style="padding:0 10px;">👁️</button></div>
-        <div class="pass-checklist" id="passChecklist">
-          <div id="chk-len" class="check-item invalid">❌ Mínimo 8 caracteres</div><div id="chk-upp" class="check-item invalid">❌ Una letra mayúscula</div><div id="chk-num" class="check-item invalid">❌ Al menos un número</div><div id="chk-spc" class="check-item invalid">❌ Un carácter especial</div>
-        </div>
-      </div>
-      <div class="form-group"><label>Confirmar Nueva Clave</label><input type="password" id="confirmarClave" placeholder="Repite tu nueva clave"></div>
-      <button class="btn btn-warning btn-w100" onclick="confirmarCambioClave()" style="padding:12px;">✅ Actualizar y Acceder</button>
-    </div>
- 
-    <div id="registerForm" class="auth-box" style="display:none;">
-      <div style="font-size:14px; font-weight:700; color:var(--text-main); font-family:var(--font-brand);">📝 Solicitar Acceso</div>
-      <div class="form-grid" style="grid-template-columns:1fr 1fr;">
-        <div class="form-group"><label>👤 Nombre Completo</label><input type="text" id="regNombre" oninput="sugerirUsuarios()" placeholder="Tu nombre completo"></div>
-        <div class="form-group"><label>📄 Cédula / Documento</label><input type="text" id="regDocumento" oninput="sugerirUsuarios()" placeholder="N° de documento"></div>
-        <div class="form-group"><label>✉️ Correo</label><input type="email" id="regCorreo" placeholder="correo@ejemplo.com"></div>
-        <div class="form-group"><label>💼 Cargo Solicitado</label><select id="regRol"><option value="Cliente">Cliente</option><option value="Usuario">Usuario General</option><option value="Vendedor">Vendedor</option><option value="Administrador">Administrador</option></select></div>
-        <div class="form-group span-2">
-          <div class="user-suggestions-wrap" style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:10px;">
-            <div class="user-suggestions-label" style="font-size:10px; font-family:var(--font-mono); color:var(--clr-primary); font-weight:600; text-transform:uppercase; margin-bottom:8px;">🆔 Sugerencias de Usuario</div>
-            <div id="userSuggestions" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:8px; min-height:28px;"></div>
-            <div style="display:flex; gap:6px; align-items:center;"><input type="text" id="regUsuario" placeholder="O escribe tu usuario personalizado" onkeyup="validarUsuarioRealtime()" style="flex:1;"><span id="userValidIndicator" style="font-size:18px; width:24px; text-align:center; flex-shrink:0;"></span></div>
-          </div>
-        </div>
-      </div>
-      <button class="btn btn-primary btn-w100" onclick="registrarUsuario()" style="padding:12px;">📤 Enviar Solicitud</button>
-      <div class="toggle-link" onclick="mostrarLogin()">← Regresar al login</div>
-    </div>
+    <div id="loginForm" class="auth-box">...</div>
+    <div id="registerForm" class="auth-box" style="display:none;">...</div>
+    <div id="forgotPasswordForm" class="auth-box" style="display:none;">...</div>
+    <div id="changePasswordForm" class="auth-box" style="display:none;">...</div>
     <div class="feedback-msg" id="pmsg"></div>
   </div>
 </div>
 
-<div id="modalInfoProducto" class="modal-overlay no-print" style="display:none;">
-  <div class="modal-content">
-    <div class="modal-header"><h3 id="modalInfoTitulo">📌 Detalles del Artículo</h3></div>
-    <div class="modal-body" id="modalDetallesCuerpo"></div>
-    <div class="modal-footer"><button class="btn btn-ghost" onclick="cerrarModalInfo()">Cerrar</button></div>
-  </div>
-</div>
-
-<div id="modalListaFiadores" class="modal-overlay no-print" style="display:none;">
-  <div class="modal-content" style="max-width:680px; width:95%;">
-    <div class="modal-header"><h3>👥 Gestión de Fiadores Registrados</h3></div>
-    <div class="modal-body">
-      <div class="table-responsive" style="max-height:55vh; overflow-y:auto;">
-        <table class="pos-table"><thead><tr><th>Documento</th><th>Nombre Completo</th><th>Estado Crédito</th><th>Acción</th></tr></thead>
-        <tbody id="tbodyTodosLosFiadores"><tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">Cargando...</td></tr></tbody></table>
-      </div>
-    </div>
-    <div class="modal-footer"><button class="btn btn-ghost" onclick="cerrarModalFiadores()">Cerrar</button></div>
-  </div>
-</div>
- 
-<div id="modalNuevoDeudor" class="modal-overlay no-print" style="display:none;">
-  <div class="modal-content">
-    <div class="modal-header"><h3>👤 Registrar Nuevo Usuario Deudor</h3></div>
-    <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
-      <div class="form-group"><label>Nombre Completo</label><input type="text" id="ndNombre"></div>
-      <div class="form-group"><label>Tipo Documento</label><select id="ndTipoDoc"><option value="CC">CC</option><option value="NIT">NIT</option></select></div>
-      <div class="form-group"><label>Documento Identidad</label><input type="text" id="ndDoc"></div>
-      <div class="form-group"><label>Teléfono</label><input type="text" id="ndTel"></div>
-      <div class="form-group"><label>Dirección</label><input type="text" id="ndDir"></div>
-      <div class="form-group"><label>Correo Electrónico</label><input type="email" id="ndCorreo"></div>
-    </div>
-    <div class="modal-footer"><button class="btn btn-ghost" onclick="cerrarModalNuevoDeudor()">Cancelar</button><button class="btn btn-primary" onclick="guardarNuevoDeudorDesdeCartera()">Guardar Deudor</button></div>
-  </div>
-</div>
- 
-<div id="modalReabastecer" class="modal-overlay no-print" style="display:none;">
-  <div class="modal-content" style="max-width:460px;">
-    <div class="modal-header"><h3>🔄 Reabastecer Artículo</h3></div>
-    <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
-      <div class="form-group"><label>Buscar Artículo (Nombre o SKU)</label><input type="text" id="txtBuscarReabastecer" placeholder="Escribe para buscar..." onkeypress="if(event.key==='Enter') buscarParaReabastecer()"></div>
-      <button class="btn btn-primary btn-w100" onclick="buscarParaReabastecer()">🔍 Buscar Artículo</button>
-      <div id="resReabastecer" style="display:none; padding:16px; background:var(--bg-base); border:1px solid var(--border-color); border-radius:var(--radius-md);">
-        <div class="form-group"><label>Artículo Seleccionado</label><select id="selArticuloReabastecer" onchange="mostrarStockActualReabastecer()"></select></div>
-        <div style="margin-top:12px; padding:10px 12px; background:var(--bg-input); border-radius:6px; border:1px solid var(--border-color);"><span style="font-size:12px; color:var(--text-muted);">Stock Actual:</span><span style="font-size:18px; font-weight:700; color:var(--clr-primary); margin-left:8px; font-family:var(--font-brand);" id="lblStockActualReab">0</span><span style="font-size:12px; color:var(--text-muted);"> uds</span></div>
-        <div class="form-group" style="margin-top:12px;"><label>Cantidad a Ingresar</label><input type="number" id="txtCantReabastecer" min="1" placeholder="Ej: 50"></div>
-      </div>
-    </div>
-    <div class="modal-footer"><button class="btn btn-ghost" onclick="cerrarModalReabastecer()">Cancelar</button><button class="btn btn-success" id="btnConfirmarReab" style="display:none;" onclick="confirmarReabastecimiento()">✅ Actualizar Stock</button></div>
-  </div>
-</div>
- 
-<div id="modalImpresion" class="modal-overlay no-print" style="display:none; z-index:3000;">
-  <div class="modal-content" style="max-width:360px; text-align:center;">
-    <div class="modal-header" style="text-align:center;"><h3>🖨️ Formato de Salida</h3></div>
-    <div class="modal-body" style="display:flex; flex-direction:column; gap:10px; align-items:center;">
-      <p style="font-size:13px; color:var(--text-muted); margin-bottom:4px;">Selecciona cómo deseas imprimir:</p>
-      <button class="btn btn-primary btn-w100" onclick="procesarImpresion('a4')" style="padding:13px;">📄 Reporte Estándar (A4)</button>
-      <button class="btn btn-info btn-w100" onclick="procesarImpresion('ticket')" style="padding:13px;">🧾 Ticket Térmico (80mm)</button>
-      <button class="btn btn-ghost btn-w100" onclick="ocultarOpcionesImpresion()" style="margin-top:4px;">✕ Cancelar</button>
-    </div>
-  </div>
-</div>
-
+<div id="modalInfoProducto" class="modal-overlay" style="display:none;">...</div>
+<div id="modalListaFiadores" class="modal-overlay" style="display:none;">...</div>
+<div id="modalNuevoDeudor" class="modal-overlay" style="display:none;">...</div>
+<div id="modalReabastecer" class="modal-overlay" style="display:none;">...</div>
+<div id="modalImpresion" class="modal-overlay" style="display:none;">...</div>
 <div id="area-impresion" class="print-area" style="display:none;"></div>
 
 <script src="app.js"></script>
-
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js')
-        .then(reg => console.log('Service Worker PWA registrado con éxito.', reg.scope))
-        .catch(err => console.error('Error al registrar el Service Worker:', err));
+      navigator.serviceWorker.register('sw.js').catch(console.error);
     });
   }
 </script>
-
 </body>
 </html>
