@@ -7,14 +7,31 @@
   
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f0f11">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+  <link rel="icon" type="image/png" href="ico.png">
+  <link rel="apple-touch-icon" href="ico.png">
 
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+
+  <style>
+    .logo-imponente {
+      height: 42px;
+      width: auto;
+      filter: drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.4));
+      transition: transform 0.3s ease, filter 0.3s ease;
+    }
+    .logo-imponente:hover {
+      transform: scale(1.05);
+      filter: drop-shadow(0px 6px 12px rgba(15, 15, 17, 0.6));
+    }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent !important;
+      padding: 0;
+    }
+  </style>
 </head>
 <body>
 
@@ -25,7 +42,9 @@
 <div class="main-content no-print" id="mainContent">
   <div class="topbar">
     <div class="brand-wrapper">
-      <div class="brand-logo">🥃</div>
+      <div class="brand-logo">
+        <img src="ico.png" alt="logo compukelc" class="logo-imponente">
+      </div>
       <div>
         <div class="brand-title">Inventario</div>
         <div class="brand-subtitle" id="appSub">Módulo de autenticación</div>
