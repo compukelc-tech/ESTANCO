@@ -81,7 +81,12 @@ body {
 
 .topbar { height: var(--topbar-h); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); border-bottom: 1px solid var(--border-color); box-shadow: var(--shadow-sm); z-index: 100; flex-shrink: 0; }
 .brand-wrapper { display: flex; align-items: center; gap: 12px; }
-.brand-logo { width: 38px; height: 38px; background: linear-gradient(135deg, #18181c 0%, #232329 100%); border: 1px solid var(--clr-primary); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 0 10px rgba(212, 175, 55, 0.2); flex-shrink: 0; }
+
+/* LOGOTIPO COMPUKELC SUTIL E IMPONENTE */
+.brand-logo { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.logo-imponente { max-height: 100%; max-width: 100%; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8)) drop-shadow(0 0 6px rgba(212, 175, 55, 0.15)); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s ease; }
+.logo-imponente:hover { transform: scale(1.1); filter: drop-shadow(0 4px 8px rgba(0,0,0,0.9)) drop-shadow(0 0 12px rgba(212, 175, 55, 0.4)); }
+
 .brand-title { font-family: var(--font-brand); font-size: 18px; font-weight: 700; color: var(--clr-primary); letter-spacing: -0.3px; }
 .brand-subtitle { font-size: 11px; color: var(--text-muted); font-weight: 400; margin-top: 1px; }
 
