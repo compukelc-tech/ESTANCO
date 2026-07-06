@@ -70,7 +70,7 @@
     <div id="lockScreen" class="lock-screen" style="display: flex;">
       <div class="welcome-banner" style="text-align:center;">
         <h1 style="margin-bottom:10px;">Base de Datos Estanco</h1>
-        <p style="margin:0 auto; color: var(--text-main);">Plataforma de gestión de inventario y facturación COMPUKELC. Identifícate para acceder a las herramientas operativas.</p>
+        <p style="margin:0 auto; color: var(--text-main);">Plataforma de gestión de inventario y facturación. Identifícate para acceder a las herramientas operativas.</p>
       </div>
       <div style="position:relative; width:100%;">
         <div class="lock-overlay-box"><button class="btn-lock-action" onclick="abrirSidebar()">🔓 Presiona aquí para iniciar sesión</button></div>
@@ -224,6 +224,7 @@
     <div id="sessionInfo" class="session-card">
       <div id="siName" style="font-weight:700; font-size:15px; color:var(--text-main);">—</div>
       <div id="siRole" style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">—</div>
+      <button class="btn btn-warning btn-w100" onclick="abrirModalCambioVoluntario()" style="margin-bottom:8px; background:var(--bg-input); color:var(--clr-primary); border:1px solid var(--clr-primary);">🔑 Cambiar Mi Contraseña</button>
       <button class="btn btn-danger btn-w100" onclick="cerrarSesion()">🚪 Cerrar Sesión</button>
     </div>
     
@@ -350,6 +351,31 @@
       <button class="btn btn-primary btn-w100" onclick="procesarImpresion('a4')" style="padding:13px;">📄 Reporte Estándar (A4)</button>
       <button class="btn btn-info btn-w100" onclick="procesarImpresion('ticket')" style="padding:13px;">🧾 Ticket Térmico (80mm)</button>
       <button class="btn btn-ghost btn-w100" onclick="ocultarOpcionesImpresion()" style="margin-top:4px;">✕ Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para cambio de contraseña voluntario -->
+<div id="modalCambioVoluntario" class="modal-overlay no-print" style="display:none; z-index:2500;">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header"><h3>🔑 Cambiar Contraseña</h3></div>
+    <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
+      <div class="form-group">
+        <label>Contraseña Actual</label>
+        <input type="password" id="miClaveAntigua" placeholder="Tu clave actual">
+      </div>
+      <div class="form-group">
+        <label>Nueva Contraseña (Mín. 8 caracteres)</label>
+        <input type="password" id="miNuevaClave" placeholder="••••••••">
+      </div>
+      <div class="form-group">
+        <label>Confirmar Nueva Contraseña</label>
+        <input type="password" id="miConfirmarClave" placeholder="••••••••">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cerrarModalCambioVoluntario()">Cancelar</button>
+      <button class="btn btn-warning" id="btnActualizarMiClave" onclick="procesarCambioClaveVoluntario()">Actualizar Contraseña</button>
     </div>
   </div>
 </div>
