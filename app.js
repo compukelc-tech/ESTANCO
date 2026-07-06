@@ -8,8 +8,32 @@ const $ = (id) => document.getElementById(id);
 const API_URL = 'https://script.google.com/macros/s/AKfycbw1uQXEyyMSBQUkXmP4RMObLpkdezHwUQAiJCK5cxS9vFfFTRO8KfxJpc_i_Oygg5Nb/exec';
 
 // Variables Globales de Estado
-let usuarioActual = null, rolActual = null, correoTemporal = null;
+let usuarioActual = null, rolActual = null, correoTemporal = null, usernameActual = null;
 let memoriaProductosPOS = [], carritoPOS = [], memoriaVentas = [], tempBusquedaReab = [], memoriaCartera = [];
+
+// Temporizador de Inactividad
+let temporizadorInactividad;
+const TIEMPO_LIMITE_MINUTOS = 15; // Tiempo en minutos antes de cerrar sesión
+
+// ============================================================================
+// CONTROL DE INACTIVIDAD
+// ============================================================================
+function reiniciarTemporizador() {
+  clearTimeout(temporizadorInactividad);
+  if (usuarioActual) {
+    temporizadorInactividad = setTimeout(() => {
+      cerrarSesion();
+      alert(`Por tu seguridad, la sesión se ha cerrado automáticamente tras ${TIEMPO_LIMITE_MINUTOS} minutos de inactividad.`);
+    }, TIEMPO_LIMITE_MINUTOS * 60 * 1000);
+  }
+}
+
+// Detectar actividad para mantener la sesión viva
+document.addEventListener('mousemove', reiniciarTemporizador);
+document.addEventListener('keypress', reiniciarTemporizador);
+document.addEventListener('click', reiniciarTemporizador);
+document.addEventListener('scroll', reiniciarTemporizador);
+
 
 // ============================================================================
 // CONTROLADOR CENTRAL FETCH API
@@ -31,7 +55,7 @@ async function apiFetch(action, payload = {}, method = 'POST') {
     if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
     
     const json = await response.json();
-    if (json.code !== 200) throw new Error(json.data.error || 'Error desconocido en el servidor');
+    if (json.code !== 200 && json.status !== 'success') throw new Error(json.data?.error || json.message || 'Error desconocido en el servidor');
     
     return json.data;
   } catch (error) {
@@ -44,15 +68,24 @@ async function apiFetch(action, payload = {}, method = 'POST') {
 // INICIALIZACIÓN
 // ============================================================================
 window.onload = async function () { 
-  mostrarLogin(); 
   initLectorBarras();
   await cargarBannerGlobal();
+  
+  // Verificar si hay una sesión activa guardada (Soporta F5 / Refresh)
+  const sesionGuardada = sessionStorage.getItem('sesionInventario');
+  if (sesionGuardada) {
+    const datos = JSON.parse(sesionGuardada);
+    usernameActual = datos.username;
+    activarSesion(datos.nombre, datos.rol);
+  } else {
+    mostrarLogin(); 
+  }
 };
 
 async function cargarBannerGlobal() {
   try {
     const res = await apiFetch('verificarEstado', {}, 'GET');
-    if (res.aviso) {
+    if (res && res.aviso) {
       const aviso = res.aviso;
       const htmlBanner = `
         <div id="bannerPublicitario" class="aviso-global-banner no-print" style="background-color: ${aviso.color || '#d4af37'};">
@@ -123,25 +156,22 @@ async function iniciarSesion() {
   showPmsg('Validando credenciales...', 'info');
   
   try {
-    const r = await apiFetch('verificarLogin', { usuario: u, password: pass });
+    const r = await apiFetch('loginSeguro', { username: u, password: pass });
     
     if (r.requiereCambio) { 
-      correoTemporal = r.usuario || u;
+      correoTemporal = r.username; 
       ocultarTodosLosFormularios(); 
       $('changePasswordForm').style.display = 'flex';
       $('claveAntigua').value = pass; 
-      showPmsg('Protocolo de seguridad: debes actualizar tu contraseña.', 'info'); 
-    } else if (r.success) { 
+      showPmsg('Protocolo de seguridad: debes actualizar tu contraseña temporal.', 'info'); 
+    } else if (r.username) { 
+      usernameActual = r.username;
       activarSesion(r.nombre, r.rol); 
-    } else if (r.pendiente) { 
-      showPmsg('Tu registro está en espera de aprobación.', 'error');
-    } else if (r.dbEstado) { 
-      showPmsg('Cuenta inhabilitada. Contacta al administrador.', 'error');
     } else {
-      showPmsg(r.error || 'Credenciales inválidas.', 'error'); 
+      showPmsg('Credenciales inválidas o cuenta no aprobada.', 'error'); 
     }
   } catch (error) {
-    showPmsg('Error de conexión con el servidor.', 'error');
+    showPmsg(error.message || 'Error de conexión con el servidor.', 'error');
   }
 }
 
@@ -168,10 +198,11 @@ async function confirmarCambioClave() {
   if (n !== c) return showPmsg('Las contraseñas no coinciden.', 'error');
   
   try {
-    const r = await apiFetch('cambiarClave', { usuario: correoTemporal, claveAntigua: a, nuevaClave: n });
-    r.success ? activarSesion(r.nombre, r.rol) : showPmsg(r.error, 'error');
+    const r = await apiFetch('cambiarPassword', { username: correoTemporal, oldPassword: a, newPassword: n });
+    showPmsg(r.message || 'Contraseña actualizada. Inicia sesión nuevamente.', 'success');
+    setTimeout(mostrarLogin, 2500); 
   } catch (error) {
-    showPmsg('Error al actualizar la contraseña.', 'error');
+    showPmsg(error.message || 'Error al actualizar la contraseña.', 'error');
   }
 }
 
@@ -223,20 +254,25 @@ async function registrarUsuario() {
 }
 
 async function procesarRecordatorio() {
-  var c = $('forgotCorreo').value.trim(), d = $('forgotDocumento').value.trim();
-  if (!c || !d) return showPmsg('Falta el correo o el documento.', 'error');
+  var c = $('forgotCorreo').value.trim();
+  if (!c) return showPmsg('Falta el correo electrónico.', 'error');
   
   try {
-    const r = await apiFetch('procesarOlvido', { correo: c, documento: d });
-    showPmsg(r.success ? '✔ Instrucciones enviadas al correo.' : r.error, r.success ? 'success' : 'error');
+    const r = await apiFetch('recuperarPassword', { email: c });
+    showPmsg(r.message || '✔ Instrucciones enviadas al correo.', 'success');
   } catch (error) {
-    showPmsg('Error al procesar la solicitud.', 'error');
+    showPmsg(error.message || 'Error al procesar la solicitud.', 'error');
   }
 }
 
 function activarSesion(nombre, rol) {
   usuarioActual = nombre; rolActual = rol;
+  
+  // GUARDAR SESIÓN EN SESSIONSTORAGE (SOPORTA F5)
+  sessionStorage.setItem('sesionInventario', JSON.stringify({ nombre: nombre, rol: rol, username: usernameActual }));
+  
   ocultarTodosLosFormularios(); cerrarSidebar();
+  reiniciarTemporizador();
   
   $('lockScreen').style.display = 'none';
   $('siName').textContent = nombre; $('siRole').textContent = rol;
@@ -275,12 +311,55 @@ function activarSesion(nombre, rol) {
 }
 
 function cerrarSesion() {
-  usuarioActual = null; rolActual = null;
+  usuarioActual = null; rolActual = null; usernameActual = null;
+  clearTimeout(temporizadorInactividad);
+  
+  // ELIMINAR SESIÓN DE SESSIONSTORAGE
+  sessionStorage.removeItem('sesionInventario');
+
   ['sessionInfo', 'tabsWrap', 'workNav', 'areaDashboard', 'areaProducto', 'areaPOS', 'areaReportes', 'areaCartera'].forEach(id => { 
     var el = $(id); if (el) el.style.display = 'none'; 
   });
   $('roleBadge').style.display = 'none'; $('lockScreen').style.display = 'flex'; $('appSub').textContent = 'Módulo de autenticación'; 
   mostrarLogin(); cerrarSidebar();
+}
+
+// ============================================================================
+// CAMBIO DE CONTRASEÑA VOLUNTARIO (USUARIO LOGUEADO)
+// ============================================================================
+function abrirModalCambioVoluntario() { 
+  $('miClaveAntigua').value = ''; 
+  $('miNuevaClave').value = ''; 
+  $('miConfirmarClave').value = ''; 
+  $('modalCambioVoluntario').style.display = 'flex'; 
+}
+function cerrarModalCambioVoluntario() { 
+  $('modalCambioVoluntario').style.display = 'none'; 
+}
+
+async function procesarCambioClaveVoluntario() {
+  var old = $('miClaveAntigua').value.trim(), 
+      newP = $('miNuevaClave').value.trim(), 
+      conf = $('miConfirmarClave').value.trim();
+      
+  if (!old || !newP || !conf) return alert('Todos los campos son obligatorios.');
+  if (newP !== conf) return alert('La nueva contraseña y la confirmación no coinciden.');
+  if (newP.length < 8) return alert('La nueva contraseña debe tener mínimo 8 caracteres.');
+
+  var btn = $('btnActualizarMiClave');
+  btn.textContent = 'Actualizando...';
+  btn.disabled = true;
+
+  try {
+    const r = await apiFetch('cambiarPassword', { username: usernameActual, oldPassword: old, newPassword: newP });
+    alert(r.message || 'Contraseña actualizada exitosamente.');
+    cerrarModalCambioVoluntario();
+  } catch (error) {
+    alert('Error: ' + error.message);
+  } finally {
+    btn.textContent = 'Actualizar Contraseña';
+    btn.disabled = false;
+  }
 }
 
 // ============================================================================
@@ -305,8 +384,8 @@ async function cargarWidgetsDashboard() {
   $('dashboardWidgets').style.display = 'grid';
   try {
     const d = await apiFetch('obtenerDashboard', {}, 'GET');
-    $('widgetAlertas').innerHTML = d.alertas.map(a => `<li>⚠️ <strong>${a.producto}</strong> — Quedan ${a.stock}</li>`).join('') || '<li>✅ Todo en orden.</li>';
-    $('widgetAnalitica').innerHTML = d.masVendidos.map(m => `<li>🔥 <strong>${m.producto}</strong> — ${m.cantidad} uds.</li>`).join('') || '<li>Sin registros aún.</li>';
+    $('widgetAlertas').innerHTML = d.alertas?.map(a => `<li>⚠️ <strong>${a.producto}</strong> — Quedan ${a.stock}</li>`).join('') || '<li>✅ Todo en orden.</li>';
+    $('widgetAnalitica').innerHTML = d.masVendidos?.map(m => `<li>🔥 <strong>${m.producto}</strong> — ${m.cantidad} uds.</li>`).join('') || '<li>Sin registros aún.</li>';
   } catch (error) {
     $('widgetAlertas').innerHTML = '<li>Error al cargar widgets.</li>';
   }
@@ -452,7 +531,7 @@ async function sincronizarClientesPOS() {
     var sel = $('selClienteFactura'); 
     sel.innerHTML = '<option value="000000000" data-nombre="Usuario de vitrina">🛒 Usuario de vitrina</option>';
     
-    var dAct = arr.filter(c => c.estado !== 'Bloqueado'), dBloq = arr.filter(c => c.estado === 'Bloqueado');
+    var dAct = arr?.filter(c => c.estado !== 'Bloqueado') || [], dBloq = arr?.filter(c => c.estado === 'Bloqueado') || [];
     
     if (dAct.length > 0) { sel.innerHTML += '<option value="EXISTENTE" disabled>— Autorizados —</option>' + dAct.map(c => `<option value="${c.documento}" data-nombre="${c.nombre}" data-estado="${c.estado}">${c.nombre} (${c.documento})</option>`).join(''); }
     if (dBloq.length > 0) { sel.innerHTML += '<option value="BLOQUEADOS" disabled>— BLOQUEADOS —</option>' + dBloq.map(c => `<option value="${c.documento}" disabled>${c.nombre} (${c.documento}) ❌</option>`).join(''); }
@@ -510,7 +589,7 @@ async function finalizarTicketVenta() {
 async function cargarVentasParaReportes() { 
   try {
     const res = await apiFetch('obtenerReporteVentas', {}, 'GET');
-    memoriaVentas = res; procesarReporteHistorico('dia');
+    memoriaVentas = res || []; procesarReporteHistorico('dia');
   } catch (error) {
     console.error("Error al cargar reportes.");
   }
@@ -556,14 +635,14 @@ async function cargarCarteraModulo() {
   
   try {
     const arr = await apiFetch('obtenerCartera', {}, 'GET');
-    memoriaCartera = arr; var globalCartera = 0;
+    memoriaCartera = arr || []; var globalCartera = 0;
     
-    if (arr.length === 0) { 
+    if (memoriaCartera.length === 0) { 
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;">🎉 No existen saldos en cartera.</td></tr>'; 
       $('txtTotalCarteraGlobal').textContent = '$0.00'; return; 
     }
     
-    tbody.innerHTML = arr.map((c, index) => {
+    tbody.innerHTML = memoriaCartera.map((c, index) => {
       globalCartera += c.deudaTotal; var bloq = c.estado === 'Bloqueado';
       var btnBloqueo = bloq ? `<button class="btn btn-success btn-sm" onclick="cambiarEstadoBloqueo('${c.documento}','Activo')">✅ Desbloquear</button>` : `<button class="btn btn-danger btn-sm" onclick="cambiarEstadoBloqueo('${c.documento}','Bloqueado')">🚫 Bloquear</button>`;
       return `<tr><td><b>${c.documento}</b></td><td>${c.nombre} ${bloq ? '<br><span style="color:var(--clr-danger);font-size:10px;font-weight:700;">[BLOQUEADO]</span>' : ''}</td><td style="color:var(--clr-danger);font-weight:700;font-family:var(--font-mono);">$${c.deudaTotal.toFixed(2)}</td><td><div style="display:flex;gap:5px;flex-wrap:wrap;"><button class="btn btn-info btn-sm" onclick="verDetalleCarteraCliente(${index})">🔎 Detalle</button><button class="btn btn-purple btn-sm" onclick="imprimirEstadoCuentaIndividual(${index})">🖨️ Imprimir</button>${btnBloqueo}</div></td></tr>`;
@@ -616,7 +695,19 @@ async function cambiarEstadoBloqueoDirecto(doc, estado) {
   }
 }
 
-// ... Las funciones de impresión (imprimirEstadoCuentaIndividual, imprimirListadoGeneralCartera) mantienen la misma lógica string literal, solo se ajustan colores opcionalmente si lo deseas en CSS print. ...
+function imprimirEstadoCuentaIndividual(idx) {
+  var c = memoriaCartera[idx];
+  var html = `<div style="font-family:sans-serif;padding:15px;color:#000;background:#fff;"><h2 style="text-align:center;margin-bottom:5px;">INVENTARIO</h2><h3 style="text-align:center;margin-top:0;">ESTADO DE CUENTA</h3><hr><p><b>Cliente:</b> ${c.nombre}<br><b>Doc:</b> ${c.documento}<br><b>Fecha:</b> ${new Date().toLocaleString()}</p><hr><h4>TICKETS</h4><table style="width:100%;text-align:left;border-collapse:collapse;font-size:12px;"><tr style="border-bottom:2px solid #000;height:30px;"><th>Ticket</th><th>Fecha</th><th>Valor</th></tr>`;
+  html += c.tickets.map(t => `<tr style="border-bottom:1px dashed #ccc;height:28px;"><td><b>${t.ticket}</b></td><td>${t.fecha}</td><td>$${t.monto.toFixed(2)}</td></tr>`).join('');
+  prepararImpresion(html + `</table><hr><h3 style="text-align:right;">TOTAL: $${c.deudaTotal.toFixed(2)}</h3></div>`);
+}
+
+function imprimirListadoGeneralCartera() {
+  var html = `<div style="font-family:sans-serif;padding:15px;color:#000;background:#fff;"><h2 style="text-align:center;">INVENTARIO</h2><h3 style="text-align:center;margin-top:0;">REPORTE GLOBAL DE CARTERA</h3><p style="text-align:center;font-size:11px;color:#555;">Fecha: ${new Date().toLocaleString()}</p><hr><table style="width:100%;text-align:left;border-collapse:collapse;font-size:13px;"><tr style="border-bottom:2px solid #000;background:#f5f5f5;height:35px;"><th>Documento</th><th>Nombre</th><th>Mora</th></tr>`;
+  var acumulado = 0;
+  html += memoriaCartera.map(c => { acumulado += c.deudaTotal; return `<tr style="border-bottom:1px solid #ddd;height:32px;"><td>${c.documento}</td><td>${c.nombre}</td><td><b>$${c.deudaTotal.toFixed(2)}</b></td></tr>`; }).join('');
+  prepararImpresion(html + `</table><hr><h2 style="text-align:right;">TOTAL CARTERA: $${acumulado.toFixed(2)}</h2></div>`);
+}
 
 // ============================================================================
 // MODAL FIADORES Y NUEVO DEUDOR
@@ -676,12 +767,12 @@ async function buscarParaReabastecer() {
   
   try {
     const arr = await apiFetch('buscarProductos', { crit: txt }, 'GET');
-    tempBusquedaReab = arr; var sel = $('selArticuloReabastecer'); 
+    tempBusquedaReab = arr || []; var sel = $('selArticuloReabastecer'); 
     sel.innerHTML = '<option value="">-- Selecciona --</option>'; btn.textContent = 'Actualizar Stock';
     
-    if (arr.length === 0) { btn.style.display = 'none'; return alert('Sin coincidencias.'); }
+    if (tempBusquedaReab.length === 0) { btn.style.display = 'none'; return alert('Sin coincidencias.'); }
     
-    sel.innerHTML += arr.map((p, i) => `<option value="${i}">${p.sku} — ${p.nombre}</option>`).join('');
+    sel.innerHTML += tempBusquedaReab.map((p, i) => `<option value="${i}">${p.sku} — ${p.nombre}</option>`).join('');
     $('resReabastecer').style.display = 'block'; btn.disabled = false; mostrarStockActualReabastecer();
   } catch (error) {
     alert("Error de búsqueda");
@@ -726,7 +817,7 @@ async function cargarSolicitudes() {
   $('authList').innerHTML = '<div style="text-align:center;padding:16px;">Cargando...</div>';
   try {
     const arr = await apiFetch('obtenerUsuarios', { rol: rolActual }, 'GET');
-    if (arr.length === 0) { $('authList').innerHTML = '<div style="text-align:center;padding:16px;">Sin usuarios.</div>'; return; }
+    if (!arr || arr.length === 0) { $('authList').innerHTML = '<div style="text-align:center;padding:16px;">Sin usuarios.</div>'; return; }
     
     $('authList').innerHTML = arr.map(u => {
       var rD = rolActual === 'Súper Administrador' ? ['Cliente', 'Usuario', 'Vendedor', 'Administrador'] : ['Cliente', 'Usuario', 'Vendedor'];
@@ -786,19 +877,4 @@ async function accEliminar(id) {
       cargarSolicitudes();
     } catch (error) { alert(error.message); }
   }
-}
-
-// Variables de impresión
-function imprimirEstadoCuentaIndividual(idx) {
-  var c = memoriaCartera[idx];
-  var html = `<div style="font-family:sans-serif;padding:15px;color:#000;background:#fff;"><h2 style="text-align:center;margin-bottom:5px;">INVENTARIO</h2><h3 style="text-align:center;margin-top:0;">ESTADO DE CUENTA</h3><hr><p><b>Cliente:</b> ${c.nombre}<br><b>Doc:</b> ${c.documento}<br><b>Fecha:</b> ${new Date().toLocaleString()}</p><hr><h4>TICKETS</h4><table style="width:100%;text-align:left;border-collapse:collapse;font-size:12px;"><tr style="border-bottom:2px solid #000;height:30px;"><th>Ticket</th><th>Fecha</th><th>Valor</th></tr>`;
-  html += c.tickets.map(t => `<tr style="border-bottom:1px dashed #ccc;height:28px;"><td><b>${t.ticket}</b></td><td>${t.fecha}</td><td>$${t.monto.toFixed(2)}</td></tr>`).join('');
-  prepararImpresion(html + `</table><hr><h3 style="text-align:right;">TOTAL: $${c.deudaTotal.toFixed(2)}</h3></div>`);
-}
-
-function imprimirListadoGeneralCartera() {
-  var html = `<div style="font-family:sans-serif;padding:15px;color:#000;background:#fff;"><h2 style="text-align:center;">INVENTARIO</h2><h3 style="text-align:center;margin-top:0;">REPORTE GLOBAL DE CARTERA</h3><p style="text-align:center;font-size:11px;color:#555;">Fecha: ${new Date().toLocaleString()}</p><hr><table style="width:100%;text-align:left;border-collapse:collapse;font-size:13px;"><tr style="border-bottom:2px solid #000;background:#f5f5f5;height:35px;"><th>Documento</th><th>Nombre</th><th>Mora</th></tr>`;
-  var acumulado = 0;
-  html += memoriaCartera.map(c => { acumulado += c.deudaTotal; return `<tr style="border-bottom:1px solid #ddd;height:32px;"><td>${c.documento}</td><td>${c.nombre}</td><td><b>$${c.deudaTotal.toFixed(2)}</b></td></tr>`; }).join('');
-  prepararImpresion(html + `</table><hr><h2 style="text-align:right;">TOTAL CARTERA: $${acumulado.toFixed(2)}</h2></div>`);
 }
