@@ -1,5 +1,5 @@
 {
-  "name": "Inventario Estanco",
+  "name": "Sistema de Inventario y POS",
   "short_name": "Inventario",
   "description": "Sistema de gestión de base de datos y facturación",
   "start_url": "./index.html",
