@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Inventario y POS | Estanco</title>
+  <title>Inventario</title>
   
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f0f11">
@@ -14,23 +14,9 @@
   <link rel="stylesheet" href="style.css">
 
   <style>
-    .logo-imponente {
-      height: 42px;
-      width: auto;
-      filter: drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.4));
-      transition: transform 0.3s ease, filter 0.3s ease;
-    }
-    .logo-imponente:hover {
-      transform: scale(1.05);
-      filter: drop-shadow(0px 6px 12px rgba(15, 15, 17, 0.6));
-    }
-    .brand-logo {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: transparent !important;
-      padding: 0;
-    }
+    .logo-imponente { height: 42px; width: auto; filter: drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.4)); transition: transform 0.3s ease, filter 0.3s ease; }
+    .logo-imponente:hover { transform: scale(1.05); filter: drop-shadow(0px 6px 12px rgba(15, 15, 17, 0.6)); }
+    .brand-logo { display: flex; align-items: center; justify-content: center; background: transparent !important; padding: 0; }
   </style>
 </head>
 <body>
@@ -46,7 +32,7 @@
         <img src="ico.png" alt="logo inventario" class="logo-imponente">
       </div>
       <div>
-        <div class="brand-title">Sistema Inventario</div>
+        <div class="brand-title">inventario</div>
         <div class="brand-subtitle" id="appSub">Módulo de autenticación</div>
       </div>
     </div>
@@ -69,8 +55,8 @@
     
     <div id="lockScreen" class="lock-screen" style="display: flex;">
       <div class="welcome-banner" style="text-align:center;">
-        <h1 style="margin-bottom:10px;">Base de Datos Estanco</h1>
-        <p style="margin:0 auto; color: var(--text-main);">Plataforma de gestión de inventario y facturación Estancos. Identifícate para acceder a las herramientas operativas.</p>
+        <h1 style="margin-bottom:10px;">base de datos</h1>
+        <p style="margin:0 auto; color: var(--text-main);">Plataforma de gestión de base de datos. Identifícate para acceder a las herramientas operativas.</p>
       </div>
       <div style="position:relative; width:100%;">
         <div class="lock-overlay-box"><button class="btn-lock-action" onclick="abrirSidebar()">🔓 Presiona aquí para iniciar sesión</button></div>
@@ -355,7 +341,6 @@
   </div>
 </div>
 
-<!-- Modal para cambio de contraseña voluntario -->
 <div id="modalCambioVoluntario" class="modal-overlay no-print" style="display:none; z-index:2500;">
   <div class="modal-content" style="max-width:400px;">
     <div class="modal-header"><h3>🔑 Cambiar Contraseña</h3></div>
@@ -396,3 +381,5 @@
 
 </body>
 </html>
+
+
