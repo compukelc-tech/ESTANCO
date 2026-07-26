@@ -711,5 +711,3 @@ async function guardarReporteEnDrive(html, tipo, dateObj) {
     console.error("Fallo la creación del backup PDF en Drive:", error.message);
   }
 }
-
-
