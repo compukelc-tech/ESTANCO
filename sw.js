@@ -1,53 +1,48 @@
-// =========================================================================================
-// SERVICE WORKER — Archivo Personal COMPUKELC
-// Cachea el "app shell" (HTML/CSS/JS/logo) para que la app abra e instale sin conexión.
-// Las peticiones al backend de Apps Script SIEMPRE van a la red (nunca se cachean),
-// para que subir archivos y consultar el registro siempre traigan datos actuales.
-// =========================================================================================
-
-const CACHE_NAME = 'archivo-personal-shell-v1';
-const ARCHIVOS_SHELL = [
+const CACHE_NAME = 'inventario-pos-v2';
+const urlsToCache = [
   './',
   './index.html',
-  './styles.css',
+  './style.css',
   './app.js',
   './manifest.json',
-  './logo.png'
+  './ico.png'
 ];
 
-self.addEventListener('install', function (evento) {
-  evento.waitUntil(
-    caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(ARCHIVOS_SHELL);
-    })
+// Instalación: Guarda los archivos estáticos en caché
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('Archivos cacheados exitosamente (v2)');
+        return cache.addAll(urlsToCache);
+      })
   );
-  self.skipWaiting();
 });
 
-self.addEventListener('activate', function (evento) {
-  evento.waitUntil(
-    caches.keys().then(function (nombres) {
+// Activación: Limpia cachés antiguos si hay una actualización
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
       return Promise.all(
-        nombres
-          .filter(function (nombre) { return nombre !== CACHE_NAME; })
-          .map(function (nombre) { return caches.delete(nombre); })
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('Borrando caché antigua:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
       );
     })
   );
-  self.clients.claim();
 });
 
-self.addEventListener('fetch', function (evento) {
-  const url = evento.request.url;
+// Peticiones: Intercepta y responde desde caché si aplica
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) return;
 
-  // Nunca cachear llamadas al backend de Apps Script (google.com / script.google.com)
-  if (url.indexOf('script.google.com') !== -1 || url.indexOf('googleapis.com') !== -1) {
-    return; // deja que vaya directo a la red
-  }
-
-  evento.respondWith(
-    caches.match(evento.request).then(function (respuestaCache) {
-      return respuestaCache || fetch(evento.request);
-    })
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        return response || fetch(event.request);
+      })
   );
 });
