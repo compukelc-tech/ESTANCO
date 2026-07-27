@@ -1,601 +1,816 @@
 // ============================================================================
-// BASE DE DATOS - API RESTFUL
+// BASE DE DATOS - FRONTEND APP.JS
 // ============================================================================
 
-const URL_MATRIZ_DATOS = 'https://docs.google.com/spreadsheets/d/1dtf5IPc27qaXuF4A9LRWnSj9GhDzdmuIlnKkzmKCbbc/edit';
-const ID_INSTANCIA_INVENTARIO = 'INV-ESTANCO'; 
-var idArchivo = '1F1yruUAEWvkenPFXk5ZxM2BQdLbHto1kjjiFZbIU9Cg';
+const $ = (id) => document.getElementById(id);
+const API_URL = 'https://script.google.com/macros/s/AKfycbw1uQXEyyMSBQUkXmP4RMObLpkdezHwUQAiJCK5cxS9vFfFTRO8KfxJpc_i_Oygg5Nb/exec';
 
-// --- ENRUTADOR GET (Lecturas) ---
-function doGet(e) {
-  try {
-    const action = e.parameter.action;
-    let result = {};
+let usuarioActual = null, rolActual = null, correoTemporal = null, usernameActual = null;
+let memoriaProductosPOS = [], carritoPOS = [], memoriaVentas = [], tempBusquedaReab = [], memoriaCartera = [];
 
-    switch (action) {
-      case 'verificarEstado':
-        result = { estado: verificarEstadoServicio_(), aviso: obtenerAvisoActivo_() };
-        break;
-      case 'obtenerUsuarios':
-        result = obtenerUsuarios(e.parameter.rol);
-        break;
-      case 'buscarProductos':
-        result = buscarProductosEnBase(e.parameter.crit);
-        break;
-      case 'obtenerDashboard':
-        result = obtenerDatosDashboard();
-        break;
-      case 'obtenerClientes':
-        result = obtenerClientes();
-        break;
-      case 'obtenerReporteVentas':
-        result = obtenerReporteVentas();
-        break;
-      case 'obtenerCartera':
-        result = obtenerCarteraClientes();
-        break;
-      case 'checkUsername':
-        result = checkUsernameAvailability(e.parameter.usuario);
-        break;
-      default:
-        return respuestaJSON({ error: "Acción GET no soportada o inexistente" }, 400);
-    }
-    return respuestaJSON(result);
-  } catch (error) {
-    return respuestaJSON({ error: error.message }, 500);
+let temporizadorInactividad;
+const TIEMPO_LIMITE_MINUTOS = 15;
+
+function reiniciarTemporizador() {
+  clearTimeout(temporizadorInactividad);
+  if (usuarioActual) {
+    temporizadorInactividad = setTimeout(() => {
+      cerrarSesion();
+      alert(`Por tu seguridad, la sesión se ha cerrado automáticamente tras ${TIEMPO_LIMITE_MINUTOS} minutos de inactividad.`);
+    }, TIEMPO_LIMITE_MINUTOS * 60 * 1000);
   }
 }
 
-// --- ENRUTADOR POST (Escrituras) ---
-function doPost(e) {
+document.addEventListener('mousemove', reiniciarTemporizador);
+document.addEventListener('keypress', reiniciarTemporizador);
+document.addEventListener('click', reiniciarTemporizador);
+document.addEventListener('scroll', reiniciarTemporizador);
+
+async function apiFetch(action, payload = {}, method = 'POST') {
   try {
-    const data = JSON.parse(e.postData.contents);
-    const action = data.action;
-    let result = {};
+    const options = { method: method };
+    let url = API_URL;
 
-    switch (action) {
-      case 'verificarLogin':
-        result = verificarLogin(data.usuario, data.password);
-        break;
-      case 'cambiarClave':
-        result = cambiarClaveObligatorio(data.usuario, data.claveAntigua, data.nuevaClave);
-        break;
-      case 'procesarOlvido':
-        result = procesarOlvidoContrasena(data.correo, data.documento);
-        break;
-      case 'registrarUsuario':
-        result = registrarNuevoUsuario(data.datosUsuario, data.esInterno, data.rolSolicitante);
-        break;
-      case 'aprobarUsuario':
-        result = { success: aprobarUsuarioConClave(data.userId, data.password, data.rolSolicitante) };
-        break;
-      case 'modificarUsuario':
-        result = { success: modificarCampoUsuario(data.userId, data.col, data.val, data.accionDesc, data.rolSolicitante) };
-        break;
-      case 'eliminarUsuario':
-        result = { success: eliminarUsuarioDefinitivo(data.userId, data.rolSolicitante) };
-        break;
-      case 'guardarProducto':
-        result = { success: guardarProducto(data.producto, data.operador) };
-        break;
-      case 'editarProducto':
-        result = { success: editarProductoExistente(data.producto, data.operador) };
-        break;
-      case 'actualizarStock':
-        result = actualizarStock(data.sku, data.cantidad, data.operador);
-        break;
-      case 'registrarCliente':
-        result = registrarNuevoCliente(data.cliente);
-        break;
-      case 'cambiarEstadoCliente':
-        result = cambiarEstadoClienteCartera(data.docCliente, data.nuevoEstado, data.operador);
-        break;
-      case 'registrarVenta':
-        result = registrarVentaPOS(data.venta);
-        break;
-      case 'pagarTicket':
-        result = pagarTicketCartera(data.ticketId, data.operador);
-        break;
-      case 'registrarDeudor':
-        result = registrarUsuarioDeudor(data.cliente, data.rolSolicitante);
-        break;
-      case 'guardarInformeDrive':
-        result = guardarInformeEnDrive(data.html, data.tipo, data.mes, data.anio);
-        break;
-      default:
-        return respuestaJSON({ error: "Acción POST no soportada: " + (action || 'indefinida') }, 400);
-    }
-    return respuestaJSON(result);
-  } catch (error) {
-    return respuestaJSON({ error: error.message }, 500);
-  }
-}
-
-// Helper para emitir respuestas JSON estandarizadas
-function respuestaJSON(data, code = 200) {
-  return ContentService.createTextOutput(JSON.stringify({ code: code, data: data }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// ============================================================================
-// FUNCIONES NÚCLEO
-// ============================================================================
-
-function leerMatrizCentral_() {
-  try {
-    return SpreadsheetApp.openByUrl(URL_MATRIZ_DATOS);
-  } catch (e) {
-    return null;
-  }
-}
-
-function verificarEstadoServicio_() {
-  const ssCentral = leerMatrizCentral_();
-  if (!ssCentral) return 'Activo';
-  const sheetEmpresas = ssCentral.getSheetByName('Empresas');
-  if (!sheetEmpresas) return 'Activo';
-  
-  const data = sheetEmpresas.getDataRange().getValues();
-  const fila = data.find((r,i) => i > 0 && r[0].toString().toUpperCase() === ID_INSTANCIA_INVENTARIO.toUpperCase());
-  return fila ? fila[3].toString().trim() : 'No Encontrado';
-}
-
-function obtenerAvisoActivo_() {
-  try {
-    const ssCentral = leerMatrizCentral_();
-    if (!ssCentral) return null;
-    const sheetAvisos = ssCentral.getSheetByName('config_avisos');
-    if (!sheetAvisos) return null;
-    
-    const data = sheetAvisos.getDataRange().getValues();
-    const fechaActual = new Date();
-    
-    for (let i = data.length - 1; i > 0; i--) {
-      const [id, titulo, mensaje, url, color, estadoRaw, fechaRaw] = data[i];
-      const estado = (estadoRaw === true || String(estadoRaw).trim().toUpperCase() === 'TRUE');
-      const fechaVigencia = fechaRaw ? new Date(new Date(fechaRaw).getTime() + 86400000) : null;
-      
-      if (estado && fechaVigencia && !isNaN(fechaVigencia) && fechaVigencia >= fechaActual) {
-        return { id, titulo, mensaje, url, color: color || '#d4af37' };
-      }
-    }
-    return null;
-  } catch(e) {
-    return { titulo: 'Error de Conexión', mensaje: 'Fallo al leer matriz: ' + e.message, color: '#e11d48' };
-  }
-}
-
-function garantizarEstructura() {
-  var ss = SpreadsheetApp.openById(idArchivo);
-  
-  // Cabeceras orientadas al modelo
-  [{ name: 'Inventario', headers: ['Código SKU', 'Nombre Producto', 'Categoría', 'Descripción', 'Costo Compra', 'Precio Venta', 'Stock Actual', 'Valor Total', 'Proveedor', 'Fecha', 'N° Factura', 'Código Producto', 'Cantidad Comprada', 'Costo Compra Total', 'Cantidad Vendida', 'Descuento (%)', 'Valor Descontado', 'Precio Venta Final', 'Stock Mínimo', 'Fecha de Caducidad', 'Código de Barras EAN/UPC'] }, 
-   { name: 'Usuarios', headers: ['ID Usuario', 'Nombre Completo', 'Correo Electrónico', 'Contraseña', 'Rol', 'Fecha de Registro', 'Estado', 'Requiere Cambio Clave', 'Usuario', 'Documento'] }, 
-   { name: 'Clientes', headers: ['ID Cliente', 'Nombre Completo', 'Tipo Documento', 'Documento Identidad', 'Teléfono', 'Dirección', 'Correo Electrónico', 'Fecha Registro', 'Estado Cartera'] }, 
-   { name: 'Ventas', headers: ['N° Ticket', 'Fecha y Hora', 'Cliente', 'Documento', 'Detalle Productos', 'Total Pagado', 'Cajero/Operador', 'Costo Base', 'Ganancia', 'Tipo Pago', 'Estado Pago'] }, 
-   { name: 'Registro de Actividades', headers: ['Fecha y Hora', 'Usuario', 'Acción', 'Detalles'] }
-  ].forEach(function(cfg, i) {
-    var sheet = ss.getSheetByName(cfg.name) || (cfg.name === 'Inventario' ? ss.getSheetByName('Hoja 1') : null);
-    
-    if (!sheet) { 
-      sheet = ss.insertSheet(cfg.name, i); 
-      sheet.appendRow(cfg.headers).getRange(1, 1, 1, cfg.headers.length).setFontWeight('bold');
+    if (method === 'POST') {
+      options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
+      options.body = JSON.stringify({ action: action, ...payload });
     } else {
-      if(sheet.getName() === 'Hoja 1') sheet.setName('Inventario');
-      
-      var cabecerasActuales = sheet.getRange(1, 1, 1, sheet.getLastColumn() || 1).getValues()[0];
-      if (cabecerasActuales.length < cfg.headers.length) {
-        var columnasAInsertar = cfg.headers.filter(function(col) { return cabecerasActuales.indexOf(col) === -1; });
-        if(columnasAInsertar.length > 0) {
-           sheet.getRange(1, sheet.getLastColumn() + 1, 1, columnasAInsertar.length).setValues([columnasAInsertar]).setFontWeight('bold');
-        }
-      }
+      const queryParams = new URLSearchParams({ action: action, ...payload }).toString();
+      url = `${API_URL}?${queryParams}`;
     }
-  });
-  return ss;
-}
 
-function checkUsernameAvailability(username) {
-  var datos = garantizarEstructura().getSheetByName('Usuarios').getDataRange().getValues();
-  for (var i = 1; i < datos.length; i++) {
-    if (!datos[i][0] || !datos[i][8]) continue;
-    if (String(datos[i][8]).trim().toLowerCase() === username.trim().toLowerCase()) return { disponible: false };
-  }
-  return { disponible: true };
-}
-
-function verificarLogin(usuario, password) {
-  var datos = garantizarEstructura().getSheetByName('Usuarios').getDataRange().getValues();
-  for (var i = 1; i < datos.length; i++) {
-    var userDB = String(datos[i][8] || datos[i][2]).trim().toLowerCase();
+    const response = await fetch(url, options);
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
     
-    if (userDB === usuario.trim().toLowerCase() && String(datos[i][3]).trim() === password.trim()) {
-      var est = String(datos[i][6] || 'Pendiente').trim();
-      if (['Bloqueado', 'Pausado', 'Eliminado'].indexOf(est) !== -1) return { success: false, dbEstado: true };
-      if (est === 'Pendiente') return { success: false, pendiente: true };
-      if (String(datos[i][7]).trim().toUpperCase() === 'TRUE' || datos[i][7] === true) {
-         return { success: false, requiereCambio: true, nombre: String(datos[i][1]), usuario: userDB };
-      }
-      registrarActividad(String(datos[i][1]), 'Inicio de Sesión', 'Rol: ' + String(datos[i][4]));
-      return { success: true, nombre: String(datos[i][1]), rol: String(datos[i][4]) };
-    }
+    const json = await response.json();
+    if (json.code !== 200 && json.status !== 'success') throw new Error(json.data?.error || json.message || 'Error desconocido en el servidor');
+    
+    return json.data;
+  } catch (error) {
+    console.error("Error en apiFetch:", error);
+    throw error;
   }
-  return { success: false, error: 'Credenciales inválidas.' };
 }
 
-function cambiarClaveObligatorio(usuario, claveAntigua, nuevaClave) {
-  var regex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+{}\[\]:;"'<>,.?~\\/-]).{8,}$/;
-  if (!regex.test(nuevaClave)) return { success: false, error: 'La contraseña no cumple requisitos.' };
+window.onload = async function () { 
+  initLectorBarras();
+  await cargarBannerGlobal();
   
-  var sheet = garantizarEstructura().getSheetByName('Usuarios'), datos = sheet.getDataRange().getValues();
-  for (var i = 1; i < datos.length; i++) {
-    var userDB = String(datos[i][8] || datos[i][2]).trim().toLowerCase();
-    if (userDB === usuario.trim().toLowerCase() && String(datos[i][3]).trim() === claveAntigua.trim()) {
-      sheet.getRange(i + 1, 4).setValue(nuevaClave); 
-      sheet.getRange(i + 1, 8).setValue(false);
-      return { success: true, nombre: String(datos[i][1]), rol: String(datos[i][4]) };
-    }
+  const sesionGuardada = sessionStorage.getItem('sesionInventario');
+  if (sesionGuardada) {
+    const datos = JSON.parse(sesionGuardada);
+    usernameActual = datos.username;
+    activarSesion(datos.nombre, datos.rol);
+  } else {
+    mostrarLogin(); 
   }
-  return { success: false, error: 'Clave temporal no coincide.' };
-}
+};
 
-function procesarOlvidoContrasena(correo, documento) {
+async function cargarBannerGlobal() {
   try {
-    var datos = garantizarEstructura().getSheetByName('Usuarios').getDataRange().getValues();
-    for (var i = 1; i < datos.length; i++) {
-      if (datos[i][2] && datos[i][9] && String(datos[i][2]).trim().toLowerCase() === correo.trim().toLowerCase() && String(datos[i][9]).trim() === documento.trim()) {
-        if (['Eliminado', 'Bloqueado'].indexOf(String(datos[i][6])) !== -1) return { success: false, error: 'Cuenta deshabilitada.' };
-        if (!datos[i][3]) return { success: false, error: 'Sin clave asignada.' };
-        
-        MailApp.sendEmail(correo, 'Recuperación de Acceso (Inventario)', 'Hola ' + datos[i][1] + ',\n\nUsuario: ' + datos[i][8] + '\nClave actual: ' + datos[i][3]);
-        return { success: true };
-      }
+    const res = await apiFetch('verificarEstado', {}, 'GET');
+    if (res && res.aviso) {
+      const aviso = res.aviso;
+      const htmlBanner = `
+        <div id="bannerPublicitario" class="aviso-global-banner no-print" style="background-color: ${aviso.color || '#d4af37'};">
+          <div style="text-align: center; padding-right: 30px;">
+            <span style="font-family: var(--font-brand); font-weight: 700; text-transform: uppercase; margin-right: 8px; background: rgba(0,0,0,0.2); padding: 3px 8px; border-radius: 4px;">${aviso.titulo}</span>
+            ${aviso.mensaje}
+            ${aviso.url ? `<a href="${aviso.url}" target="_blank">Ver más detalles</a>` : ''}
+          </div>
+          <button class="aviso-close" onclick="document.getElementById('bannerPublicitario').style.display='none'">✕</button>
+        </div>
+      `;
+      $('bannerPublicitarioContainer').innerHTML = htmlBanner;
     }
-    return { success: false, error: 'El correo y/o el documento no coinciden.' };
   } catch (e) {
-    return { success: false, error: 'Error de permisos al enviar correo. Autoriza el script ejecutándolo desde el editor.' };
+    console.log("No se pudo cargar el estado global/banner.");
   }
 }
 
-function registrarNuevoUsuario(datosUsuario, esInterno, rolSolicitante) {
-  var rol = datosUsuario.rol;
-  if (rol === 'Súper Administrador') return { ok: false, error: 'Acción denegada. El Súper Administrador debe crearse desde la BD.' };
-  var sheet = garantizarEstructura().getSheetByName('Usuarios'), datos = sheet.getDataRange().getValues();
-  for (var i = 1; i < datos.length; i++) {
-    if (!datos[i][0]) continue;
+function initLectorBarras() {
+  var lector = $('txtBuscarPOS');
+  if (lector) {
+    lector.addEventListener('keydown', function (e) { 
+      if (e.key === 'Enter') { e.preventDefault(); ejecutarBusquedaPOS(); } 
+    }); 
+  }
+}
+
+function toggleSidebar() { var p = $('sidebarPanel'); p.classList.contains('active') ? cerrarSidebar() : abrirSidebar(); }
+function abrirSidebar() { $('sidebarPanel').classList.add('active'); $('sidebarOverlay').classList.add('active'); }
+function cerrarSidebar() { $('sidebarPanel').classList.remove('active'); $('sidebarOverlay').classList.remove('active'); }
+
+function ocultarTodosLosFormularios() { 
+  ['loginForm', 'registerForm', 'forgotPasswordForm', 'changePasswordForm'].forEach(id => { $(id).style.display = 'none'; }); 
+  $('pmsg').style.display = 'none'; 
+}
+
+function mostrarLogin()   { ocultarTodosLosFormularios(); $('loginForm').style.display = 'flex'; }
+function mostrarRegistro(){ ocultarTodosLosFormularios(); $('registerForm').style.display = 'flex'; }
+function mostrarOlvido()  { ocultarTodosLosFormularios(); $('forgotPasswordForm').style.display = 'flex'; }
+
+function togglePass(id) { var x = $(id); x.type = (x.type === 'password') ? 'text' : 'password'; }
+
+function showPmsg(t, c) { var e = $('pmsg'); e.textContent = t; e.className = 'feedback-msg ' + c; e.style.display = 'block'; }
+
+async function iniciarSesion() {
+  var u = $('loginUsuario').value.trim(), pass = $('loginPassword').value.trim();
+  if (!u || !pass) return showPmsg('Rellena las casillas vacías.', 'error');
+  
+  showPmsg('Validando credenciales...', 'info');
+  
+  try {
+    const r = await apiFetch('verificarLogin', { usuario: u, password: pass });
     
-    if (datos[i][8] && String(datos[i][8]).trim().toLowerCase() === datosUsuario.usuario.trim().toLowerCase()) return { ok: false, error: 'Usuario en uso.' };
-    if (datos[i][2] && String(datos[i][2]).trim().toLowerCase() === datosUsuario.correo.trim().toLowerCase()) return { ok: false, error: 'Correo ya registrado.' };
-  }
-  var nId = 'USR' + String(sheet.getLastRow()).padStart(3, '0');
-  sheet.appendRow([nId, datosUsuario.nombre, datosUsuario.correo, "", rol, new Date(), esInterno ? 'Aprobado' : 'Pendiente', true, datosUsuario.usuario, datosUsuario.documento]);
-  return { ok: true };
-}
-
-function aprobarUsuarioConClave(userId, passwordProvisional, rolSolicitante) {
-  var sheet = garantizarEstructura().getSheetByName('Usuarios'), datos = sheet.getDataRange().getValues();
-  for (var i = 1; i < datos.length; i++) {
-    if (String(datos[i][0]).trim() === String(userId).trim()) {
-      sheet.getRange(i + 1, 4).setValue(passwordProvisional); 
-      sheet.getRange(i + 1, 7).setValue('Aprobado'); 
-      sheet.getRange(i + 1, 8).setValue(true);
-      registrarActividad(rolSolicitante || 'Sistema', 'Aprobación Usuario', datos[i][1] + ' aprobado.');
-      return true;
+    if (r.requiereCambio) { 
+      correoTemporal = r.usuario; 
+      ocultarTodosLosFormularios(); 
+      $('changePasswordForm').style.display = 'flex';
+      $('claveAntigua').value = pass; 
+      showPmsg('Protocolo de seguridad: debes actualizar tu contraseña temporal.', 'info'); 
+    } else if (r.nombre) { 
+      usernameActual = u;
+      activarSesion(r.nombre, r.rol); 
+    } else {
+      showPmsg('Credenciales inválidas o cuenta no aprobada.', 'error'); 
     }
+  } catch (error) {
+    showPmsg(error.message || 'Error de conexión con el servidor.', 'error');
   }
-  throw new Error("Usuario no encontrado.");
 }
 
-function registrarUsuarioDeudor(c, rolSolicitante) {
-  if (['Súper Administrador', 'Administrador'].indexOf(rolSolicitante) === -1) throw new Error("Solo administradores pueden registrar usuarios deudores.");
-  return registrarNuevoCliente(c);
+function checkPasswordComplexity() {
+  var p = $('nuevaClave').value;
+  var len = p.length >= 8, upp = /[A-Z]/.test(p), num = /\d/.test(p), spc = /[!@#$%^&*()_+{}\[\]:;"'<>,.?~\\/-]/.test(p);
+  
+  function setChk(id, ok, txt) { var el = $(id); el.className = 'check-item ' + (ok ? 'valid' : 'invalid'); el.innerHTML = (ok ? '✅' : '❌') + ' ' + txt; }
+  
+  setChk('chk-len', len, 'Mínimo 8 caracteres'); 
+  setChk('chk-upp', upp, 'Una letra mayúscula');
+  setChk('chk-num', num, 'Al menos un número'); 
+  setChk('chk-spc', spc, 'Un carácter especial');
+  
+  return len && upp && num && spc;
 }
 
-function obtenerUsuarios(rolSolicitante) {
-  var datos = garantizarEstructura().getSheetByName('Usuarios').getDataRange().getValues(), res = [];
-  for (var i = 1; i < datos.length; i++) {
-    if (!datos[i][0]) continue;
-    var dbRol = String(datos[i][4]).trim();
-    if (rolSolicitante === 'Administrador' && ['Súper Administrador', 'Administrador'].indexOf(dbRol) !== -1) continue;
-    if (rolSolicitante === 'Vendedor' && dbRol !== 'Cliente') continue;
-    res.push({ id: datos[i][0], nombre: datos[i][1], correo: datos[i][2], rol: dbRol, estado: String(datos[i][6] || 'Pendiente') });
+async function confirmarCambioClave() {
+  var a = $('claveAntigua').value.trim(), n = $('nuevaClave').value.trim(), c = $('confirmarClave').value.trim();
+  
+  if (!checkPasswordComplexity()) return showPmsg('La contraseña no cumple los requisitos.', 'error');
+  if (n !== c) return showPmsg('Las contraseñas no coinciden.', 'error');
+  
+  try {
+    const r = await apiFetch('cambiarClave', { usuario: correoTemporal, claveAntigua: a, nuevaClave: n });
+    showPmsg(r.message || 'Contraseña actualizada. Inicia sesión nuevamente.', 'success');
+    setTimeout(mostrarLogin, 2500); 
+  } catch (error) {
+    showPmsg(error.message || 'Error al actualizar la contraseña.', 'error');
   }
-  return res;
 }
 
-function modificarCampoUsuario(userId, col, val, accion, rolSolicitante) {
-  var sheet = garantizarEstructura().getSheetByName('Usuarios'), datos = sheet.getDataRange().getValues();
-  for (var i = 1; i < datos.length; i++) {
-    if (String(datos[i][0]).trim() === String(userId).trim()) {
-      if (String(datos[i][4]).trim() === 'Súper Administrador' && rolSolicitante !== 'Súper Administrador') throw new Error("Acción denegada.");
-      sheet.getRange(i + 1, col).setValue(val);
-      registrarActividad(rolSolicitante || 'Sistema', accion, datos[i][1] + ' -> ' + val);
-      return true;
+function sugerirUsuarios() {
+  var n = $('regNombre').value.trim(), d = $('regDocumento').value.trim(), cont = $('userSuggestions');
+  if (!n || !d || d.length < 4) { cont.innerHTML = ''; return; }
+  
+  var partes = n.split(' '), pNombre = partes[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''), iniciales = partes.map(function (p) { return p.charAt(0).toLowerCase(); }).join('').normalize('NFD').replace(/[\u0300-\u036f]/g, ''), uDigitos = d.slice(-4);
+  var alts = [ pNombre + uDigitos, iniciales + uDigitos, pNombre + (iniciales.charAt(1) || '') + uDigitos, pNombre + '_' + uDigitos ];
+  
+  cont.innerHTML = alts.map(function (a) { return `<button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('regUsuario').value='${a}'; validarUsuarioRealtime();">${a}</button>`; }).join('');
+}
+
+var valTimer;
+function validarUsuarioRealtime() {
+  clearTimeout(valTimer);
+  var u = $('regUsuario').value.trim(), ind = $('userValidIndicator');
+  if (!u) { ind.innerHTML = ''; return; }
+  ind.innerHTML = '⏳';
+  
+  valTimer = setTimeout(async function () { 
+    try {
+      const r = await apiFetch('checkUsername', { usuario: u }, 'GET');
+      ind.innerHTML = r.disponible ? '✅' : '❌';
+    } catch (error) {
+      ind.innerHTML = '⚠️';
     }
-  }
-  throw new Error("Usuario no encontrado.");
+  }, 500);
 }
 
-function eliminarUsuarioDefinitivo(userId, rolSol) {
-  var sheet = garantizarEstructura().getSheetByName('Usuarios'), datos = sheet.getDataRange().getValues();
-  for (var i = 1; i < datos.length; i++) {
-    if (String(datos[i][0]).trim() === String(userId).trim()) {
-      if (rolSol !== 'Súper Administrador' && String(datos[i][4]).trim() !== 'Cliente') throw new Error("No autorizado.");
-      sheet.deleteRow(i + 1); 
-      return true;
-    }
-  }
-  throw new Error("Usuario no encontrado.");
+async function registrarUsuario() {
+  var c = $('regCorreo').value.trim(), n = $('regNombre').value.trim(), r = $('regRol').value, d = $('regDocumento').value.trim(), u = $('regUsuario').value.trim();
+  if (!c || !n || !d || !u) return showPmsg('Faltan datos obligatorios.', 'error');
+  
+  try {
+    const payload = { datosUsuario: { nombre: n, correo: c, rol: r, documento: d, usuario: u }, esInterno: false, rolSolicitante: '' };
+    const res = await apiFetch('registrarUsuario', payload);
+    if (res.ok) { showPmsg('✅ Solicitud enviada. Espera aprobación.', 'success'); setTimeout(mostrarLogin, 3000); } else { showPmsg(res.error, 'error'); }
+  } catch (error) { showPmsg('Error de conexión al registrar.', 'error'); }
 }
 
-function guardarProducto(d, u) {
-  var ss = garantizarEstructura();
-  var sheet = ss.getSheetByName('Inventario');
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var stock = Number(d.cantidadComprada) || 0;
-  var valTotal = (Number(d.precioVenta) || 0) * stock;
+async function procesarRecordatorio() {
+  var c = $('forgotCorreo').value.trim();
+  if (!c) return showPmsg('Falta el correo electrónico.', 'error');
   
-  var rowData = new Array(headers.length);
-  var standardMapping = { 'Código SKU': d.codigoSku, 'Nombre Producto': d.nombreProducto, 'Categoría': d.categoria, 'Descripción': d.descripcion, 'Costo Compra': d.costoCompra, 'Precio Venta': d.precioVenta, 'Stock Actual': stock, 'Valor Total': valTotal, 'Proveedor': d.proveedor, 'Fecha': new Date(), 'N° Factura': d.numeroFactura, 'Código Producto': d.codigoProducto, 'Cantidad Comprada': stock, 'Costo Compra Total': (Number(d.costoCompra) || 0) * stock, 'Cantidad Vendida': 0, 'Descuento (%)': 0, 'Valor Descontado': 0, 'Precio Venta Final': d.precioVenta, 'Fecha de Caducidad': d.fechaCaducidad || '' };
-  
-  for (var i = 0; i < headers.length; i++) {
-    rowData[i] = standardMapping.hasOwnProperty(headers[i]) ? standardMapping[headers[i]] : '';
-  }
-  sheet.appendRow(rowData);
-  registrarActividad(u || 'Sistema', 'Alta Producto', 'SKU: ' + d.codigoSku + ' | Cantidad: ' + stock);
-  return true;
+  try {
+    const r = await apiFetch('procesarOlvido', { correo: c, documento: '123456789' }); 
+    showPmsg(r.message || '✔ Instrucciones enviadas al correo.', 'success');
+  } catch (error) { showPmsg(error.message || 'Error al procesar la solicitud.', 'error'); }
 }
 
-function editarProductoExistente(d, u) {
-  var ss = garantizarEstructura();
-  var sheet = ss.getSheetByName('Inventario');
-  var datos = sheet.getDataRange().getValues();
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+function activarSesion(nombre, rol) {
+  usuarioActual = nombre; rolActual = rol;
+  sessionStorage.setItem('sesionInventario', JSON.stringify({ nombre: nombre, rol: rol, username: usernameActual }));
   
-  for (var i = 1; i < datos.length; i++) {
-    if (String(datos[i][0]).trim() === String(d.codigoSkuOriginal).trim()) {
-      var valTotal = (Number(d.precioVenta) || 0) * (Number(d.stockActual) || 0);
+  ocultarTodosLosFormularios(); cerrarSidebar(); reiniciarTemporizador();
+  
+  $('lockScreen').style.display = 'none';
+  $('siName').textContent = nombre; $('siRole').textContent = rol;
+  $('sessionInfo').style.display = 'flex';
+  
+  var esAdmin = ['Súper Administrador', 'Administrador'].indexOf(rol) !== -1;
+  var hab = ['Súper Administrador', 'Administrador', 'Vendedor'].indexOf(rol) !== -1;
+  
+  $('tabsWrap').style.display = hab ? 'flex' : 'none';
+  $('tabsNav').style.display = hab ? 'flex' : 'none'; $('t2').style.display = hab ? 'block' : 'none';
+  
+  var badge = $('roleBadge'); badge.textContent = rol; badge.className = 'role-badge ' + (rol === 'Súper Administrador' ? 'sa' : 'us'); badge.style.display = 'inline-block';
+  
+  $('appSub').textContent = 'Panel Operativo Activo';
+  
+  ['g-costoCompra', 'g-valorTotal', 'g-proveedor', 'g-factura', 'g-codProd', 'g-cantComp', 'g-costoTotal'].forEach(function (id) { var el = $(id); if (el) el.style.display = esAdmin ? 'flex' : 'none'; });
+  
+  $('btnTabAlta').style.display = esAdmin ? 'inline-flex' : 'none';
+  $('btnTabRep').style.display = esAdmin ? 'inline-flex' : 'none';
+  $('btnTabReabastecer').style.display = esAdmin ? 'inline-flex' : 'none';
+  $('btnTabCartera').style.display = esAdmin ? 'inline-flex' : 'none';
+  $('btnNuevoDeudorCartera').style.display = esAdmin ? 'inline-flex' : 'none';
+  
+  var soloLectura = ['Usuario', 'Cliente'].indexOf(rol) !== -1;
+  document.querySelectorAll('#areaProducto input:not(#calcCostoBase):not(#calcMargen)').forEach(function (i) { i.disabled = soloLectura; });
+  $('btnGuardar').style.display = soloLectura ? 'none' : 'block';
+  
+  sincronizarClientesPOS();
+  if (esAdmin) { cargarVentasParaReportes(); cargarWidgetsDashboard(); }
+  configurarDashboard(rol); cambiarSeccionTrabajo('DASHBOARD');
+}
+
+function cerrarSesion() {
+  usuarioActual = null; rolActual = null; usernameActual = null; clearTimeout(temporizadorInactividad);
+  sessionStorage.removeItem('sesionInventario');
+  ['sessionInfo', 'tabsWrap', 'workNav', 'areaDashboard', 'areaProducto', 'areaPOS', 'areaReportes', 'areaCartera'].forEach(id => { var el = $(id); if (el) el.style.display = 'none'; });
+  $('roleBadge').style.display = 'none'; $('lockScreen').style.display = 'flex'; $('appSub').textContent = 'Módulo de autenticación'; 
+  mostrarLogin(); cerrarSidebar();
+}
+
+function abrirModalCambioVoluntario() { $('miClaveAntigua').value = ''; $('miNuevaClave').value = ''; $('miConfirmarClave').value = ''; $('modalCambioVoluntario').style.display = 'flex'; }
+function cerrarModalCambioVoluntario() { $('modalCambioVoluntario').style.display = 'none'; }
+
+async function procesarCambioClaveVoluntario() {
+  var old = $('miClaveAntigua').value.trim(), newP = $('miNuevaClave').value.trim(), conf = $('miConfirmarClave').value.trim();
+  if (!old || !newP || !conf) return alert('Todos los campos son obligatorios.');
+  if (newP !== conf) return alert('La nueva contraseña y la confirmación no coinciden.');
+  if (newP.length < 8) return alert('La nueva contraseña debe tener mínimo 8 caracteres.');
+  var btn = $('btnActualizarMiClave'); btn.textContent = 'Actualizando...'; btn.disabled = true;
+
+  try {
+    const r = await apiFetch('cambiarClave', { usuario: usernameActual, claveAntigua: old, nuevaClave: newP });
+    alert(r.message || 'Contraseña actualizada exitosamente.'); cerrarModalCambioVoluntario();
+  } catch (error) { alert('Error: ' + error.message); } finally { btn.textContent = 'Actualizar Contraseña'; btn.disabled = false; }
+}
+
+function configurarDashboard(rol) {
+  var cont = $('dashboardBotones'), esAdmin = ['Súper Administrador', 'Administrador'].indexOf(rol) !== -1;
+  function mkCard(icon, bg, color, titulo, desc, onclick) { 
+    return `<div class="preview-card" onclick="${onclick}"><div class="preview-icon" style="background:${bg}; color:${color};">${icon}</div><div class="card-stat" style="font-size:17px;">${titulo}</div><div class="card-title" style="margin-top:4px;">${desc}</div></div>`; 
+  }
+  cont.innerHTML = mkCard('🔍', 'var(--clr-success-light)', 'var(--clr-success)', 'Buscar y Facturar', 'Consultar inventario y generar tickets.', "cambiarSeccionTrabajo('POS')");
+  
+  if (esAdmin) {
+    cont.innerHTML += mkCard('📦', 'var(--clr-info-light)', 'var(--clr-info)', 'Ingresar Artículo', 'Añadir productos nuevos.', "cambiarSeccionTrabajo('ALTA')");
+    cont.innerHTML += mkCard('🔄', 'rgba(15, 118, 110, 0.15)', '#0f766e', 'Reabastecer Stock', 'Aumentar stock.', 'abrirModalReabastecer()');
+    cont.innerHTML += mkCard('📊', 'rgba(126, 34, 206, 0.15)', '#7e22ce', 'Reporte General', 'Analizar ingresos.', "cambiarSeccionTrabajo('REPORTES')");
+    cont.innerHTML += mkCard('💼', 'var(--clr-danger-light)', 'var(--clr-danger)', 'Control Cartera', 'Gestionar deudas.', "cambiarSeccionTrabajo('CARTERA')");
+    cont.innerHTML += mkCard('🗂️', '#e0e7ff', '#4f46e5', 'Consolidado Stock', 'Imprimir o PDF del inventario actual.', 'generarReporteConsolidado()');
+    cont.innerHTML += mkCard('📈', '#ffedd5', '#ea580c', 'Informe Ventas Mes', 'Imprimir ventas destacadas.', 'generarReporteVentasMes()');
+  }
+}
+
+async function cargarWidgetsDashboard() {
+  $('dashboardWidgets').style.display = 'grid';
+  try {
+    const d = await apiFetch('obtenerDashboard', {}, 'GET');
+    $('widgetAlertas').innerHTML = d.alertas?.map(a => `<li>⚠️ <strong>${a.producto}</strong> — Quedan ${a.stock}</li>`).join('') || '<li>✅ Todo en orden.</li>';
+    $('widgetAnalitica').innerHTML = d.masVendidos?.map(m => `<li>🔥 <strong>${m.producto}</strong> — ${m.cantidad} uds.</li>`).join('') || '<li>Sin registros aún.</li>';
+  } catch (error) { $('widgetAlertas').innerHTML = '<li>Error al cargar widgets.</li>'; }
+}
+
+function cambiarSeccionTrabajo(modo) {
+  ['lockScreen', 'areaDashboard', 'areaProducto', 'areaPOS', 'areaReportes', 'areaCartera'].forEach(id => { var el = $(id); if (el) el.style.display = 'none'; });
+  var nav = $('workNav');
+  if (modo === 'DASHBOARD') { $('areaDashboard').style.display = 'flex'; if (nav) nav.style.display = 'none'; } 
+  else {
+    if (nav) nav.style.display = 'flex';
+    if (modo === 'ALTA') { $('areaProducto').style.display = 'flex'; restaurarFormularioAlta(); }
+    if (modo === 'POS') $('areaPOS').style.display = 'flex';
+    if (modo === 'REPORTES') $('areaReportes').style.display = 'flex';
+    if (modo === 'CARTERA') { $('areaCartera').style.display = 'flex'; cargarCarteraModulo(); }
+  }
+  ['btnTabDash', 'btnTabAlta', 'btnTabPOS', 'btnTabRep', 'btnTabCartera'].forEach(btn => { var b = $(btn); if (b) b.classList.remove('btn-success'); });
+  var mapa = { DASHBOARD: 'btnTabDash', ALTA: 'btnTabAlta', POS: 'btnTabPOS', REPORTES: 'btnTabRep', CARTERA: 'btnTabCartera' };
+  if (mapa[modo]) { var bActive = $(mapa[modo]); if (bActive) bActive.classList.add('btn-success'); }
+}
+
+var htmlImpresionPendiente = '';
+function prepararImpresion(html) { htmlImpresionPendiente = html; $('modalImpresion').style.display = 'flex'; }
+function ocultarOpcionesImpresion() { $('modalImpresion').style.display = 'none'; htmlImpresionPendiente = ''; }
+function procesarImpresion(formato) {
+  var contenedor = $('area-impresion'); contenedor.innerHTML = htmlImpresionPendiente; contenedor.style.display = 'block'; 
+  document.body.classList.remove('print-a4', 'print-ticket'); document.body.classList.add('print-' + formato);
+  ocultarOpcionesImpresion();
+  setTimeout(function () { window.print(); contenedor.innerHTML = ''; contenedor.style.display = 'none'; document.body.classList.remove('print-a4', 'print-ticket'); }, 500);
+}
+
+function calcularPrecioSugerido() { var base = parseFloat($('calcCostoBase').value) || 0, margen = parseFloat($('calcMargen').value) || 0, pf = base + (base * (margen / 100)); $('calcPrecioSugerido').textContent = '$' + pf.toFixed(2); }
+function limpiarCalculadora() { $('calcCostoBase').value = ''; $('calcMargen').value = ''; $('calcPrecioSugerido').textContent = '$0.00'; restaurarFormularioAlta(); }
+function gv(id) { var e = $(id); return e ? e.value : ''; }
+
+// VARIABLES PARA LA EDICIÓN
+let skuEdicionOriginal = null;
+
+async function procesarProducto() {
+  if (skuEdicionOriginal) { return guardarEdicionProducto(); }
+  
+  var d = { codigoSku: gv('codigoSku'), nombreProducto: gv('nombreProducto'), categoria: gv('categoria'), descripcion: gv('descripcion'), costoCompra: gv('costoCompra'), precioVenta: gv('precioVenta'), stockActual: gv('cantidadComprada'), valorTotal: gv('valorTotal'), proveedor: gv('proveedor'), numeroFactura: gv('numeroFactura'), codigoProducto: gv('codigoProducto'), cantidadComprada: gv('cantidadComprada'), costoCompraTotal: gv('costoCompraTotal'), fechaCaducidad: gv('fechaCaducidad') };
+  if (!d.codigoSku || !d.nombreProducto) return alert('SKU y Nombre obligatorios.');
+  var btn = $('btnGuardar'); btn.textContent = '⏳ Guardando...'; btn.disabled = true;
+  try {
+    const r = await apiFetch('guardarProducto', { producto: d, operador: usuarioActual });
+    btn.textContent = '💾 Guardar Producto'; btn.disabled = false; alert('✅ Registrado.');
+    restaurarFormularioAlta();
+  } catch (error) { btn.textContent = '💾 Guardar Producto'; btn.disabled = false; alert('❌ Error: ' + error.message); }
+}
+
+async function guardarEdicionProducto() {
+  var d = { 
+    codigoSkuOriginal: skuEdicionOriginal, 
+    nombreProducto: gv('nombreProducto'), 
+    categoria: gv('categoria'), 
+    descripcion: gv('descripcion'), 
+    costoCompra: gv('costoCompra'), 
+    precioVenta: gv('precioVenta'), 
+    stockActual: gv('cantidadComprada'), 
+    proveedor: gv('proveedor'),
+    codigoProducto: gv('codigoProducto')
+  };
+  if (!d.nombreProducto) return alert('Nombre obligatorio.');
+  
+  var btn = $('btnGuardar'); btn.textContent = '⏳ Actualizando...'; btn.disabled = true;
+  
+  try {
+    const r = await apiFetch('editarProducto', { producto: d, operador: usuarioActual });
+    alert('✅ Producto actualizado correctamente.');
+    restaurarFormularioAlta();
+  } catch (error) { 
+    alert('❌ Error: ' + error.message); 
+    btn.textContent = '🔄 Actualizar Producto'; 
+    btn.disabled = false; 
+  }
+}
+
+function restaurarFormularioAlta() {
+  skuEdicionOriginal = null;
+  var campoSku = $('codigoSku');
+  if (campoSku) campoSku.disabled = false;
+  ['codigoSku','nombreProducto','categoria','descripcion','costoCompra','precioVenta','valorTotal','proveedor','numeroFactura','codigoProducto','cantidadComprada','costoCompraTotal','fechaCaducidad'].forEach(id => { if($(id)) $(id).value = ''; });
+  var btn = $('btnGuardar');
+  if (btn) {
+    btn.textContent = '💾 Guardar Producto en Inventario';
+    btn.classList.remove('btn-warning');
+    btn.classList.add('btn-primary');
+  }
+}
+
+function cargarParaEdicion(idx) {
+  var p = memoriaProductosPOS[idx];
+  cambiarSeccionTrabajo('ALTA');
+  
+  $('codigoSku').value = p.sku;
+  $('nombreProducto').value = p.nombre;
+  $('categoria').value = p.categoria || '';
+  $('descripcion').value = p.descripcion || '';
+  $('costoCompra').value = p.costoCompra || 0;
+  $('precioVenta').value = p.precioFinal || 0;
+  $('proveedor').value = p.proveedor || '';
+  $('codigoProducto').value = p.codigoProducto || '';
+  $('cantidadComprada').value = p.stock || 0;
+  
+  $('codigoSku').disabled = true;
+  skuEdicionOriginal = p.sku;
+  
+  var btn = $('btnGuardar');
+  btn.textContent = '🔄 Actualizar Producto';
+  btn.classList.remove('btn-primary');
+  btn.classList.add('btn-warning');
+}
+
+async function ejecutarBusquedaPOS() {
+  var txt = $('txtBuscarPOS').value; if (!txt) return;
+  try {
+    const arr = await apiFetch('buscarProductos', { crit: txt }, 'GET');
+    memoriaProductosPOS = arr; $('wrapTablaResultados').style.display = 'block';
+    $('thDinamicoPOS').innerHTML = ['SKU', 'Nombre', 'Categoría', 'Stock', 'Precio', 'Proveedor', 'Acción'].map(c => `<th>${c}</th>`).join('');
+    if (arr.length === 0) { $('tbodyResultadosPOS').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-muted);">Sin resultados.</td></tr>'; return; }
+    
+    $('tbodyResultadosPOS').innerHTML = arr.map((p, idx) => {
+      var s = Number(p.stock);
+      var badge = s <= 0 ? `<span class="stock-badge zero" style="background:var(--clr-danger);color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;">Agotado</span>` : (s <= (p.stockMinimo || 5) ? `<span class="stock-badge low" style="background:var(--clr-warning);color:#000;padding:2px 6px;border-radius:4px;font-size:10px;">${s}</span>` : `<span class="stock-badge ok" style="background:var(--clr-success);color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;">${s}</span>`);
       
-      var mapValores = {
-        'Nombre Producto': d.nombreProducto,
-        'Categoría': d.categoria,
-        'Descripción': d.descripcion,
-        'Costo Compra': d.costoCompra,
-        'Precio Venta': d.precioVenta,
-        'Stock Actual': d.stockActual,
-        'Valor Total': valTotal,
-        'Proveedor': d.proveedor,
-        'Código Producto': d.codigoProducto
-      };
+      var btnEditar = ['Súper Administrador', 'Administrador'].indexOf(rolActual) !== -1 ? `<button class="btn btn-warning btn-sm" onclick="cargarParaEdicion(${idx})" title="Editar este producto">✏️</button>` : '';
       
-      for (var col = 0; col < headers.length; col++) {
-        if (mapValores[headers[col]] !== undefined) {
-          sheet.getRange(i + 1, col + 1).setValue(mapValores[headers[col]]);
-        }
-      }
-      
-      registrarActividad(u || 'Sistema', 'Edición Producto', 'Se modificó el SKU: ' + d.codigoSkuOriginal);
-      return true;
-    }
-  }
-  throw new Error("Producto no encontrado en la base de datos.");
+      return `<tr><td><code style="font-size:11px;">${p.sku}</code></td><td><b>${p.nombre}</b></td><td>${p.categoria}</td><td>${badge}</td><td style="font-weight:600;color:var(--clr-primary);">$${p.precioFinal}</td><td>${p.proveedor || '—'}</td><td><div style="display:flex;gap:5px;"><button class="btn btn-info btn-sm" onclick="verInfoProducto(${idx})">ℹ️</button>${btnEditar}<button class="btn btn-primary btn-sm" onclick="agregarItemAlCarrito(${idx})" ${s <= 0 ? 'disabled style="opacity:0.4;"' : ''}>🛒</button></div></td></tr>`;
+    }).join('');
+  } catch (error) { alert("Error al buscar productos."); }
 }
 
-function actualizarStock(sku, cantSuma, operador) {
-  var ss = garantizarEstructura(), sheet = ss.getSheetByName('Inventario'), datos = sheet.getDataRange().getValues();
-  for (var i = 1; i < datos.length; i++) {
-    if (String(datos[i][0]).trim() === String(sku).trim()) {
-      var nuevoStock = (Number(datos[i][6]) || 0) + Number(cantSuma);
-      sheet.getRange(i + 1, 7).setValue(nuevoStock);
-      sheet.getRange(i + 1, 8).setValue(nuevoStock * (Number(datos[i][4]) || 0)); 
-      registrarActividad(operador, 'Reabastecimiento', 'SKU: ' + sku + ' | +' + cantSuma + ' (Total: ' + nuevoStock + ')');
-      return { success: true, nuevoStock: nuevoStock };
-    }
-  }
-  return { success: false, error: 'Artículo no encontrado.' };
+function verInfoProducto(idx) {
+  var p = memoriaProductosPOS[idx], esAdmin = ['Súper Administrador', 'Administrador'].indexOf(rolActual) !== -1;
+  $('modalInfoTitulo').textContent = '📌 ' + p.nombre;
+  $('modalDetallesCuerpo').innerHTML = '<table style="width:100%;font-size:13px;border-collapse:collapse;">' + [['SKU', p.sku], ['Categoría', p.categoria], ['Desc.', p.descripcion || 'N/A'], ['Stock', p.stock], ['Precio V.', '$' + p.precioFinal], ['Costo', esAdmin ? '$' + (p.costoCompra || '0') : '🔒'], ['Prov.', p.proveedor || '—'], ['Cod.', p.codigoProducto || 'N/A']].map(r => `<tr style="border-bottom:1px solid var(--border-subtle);"><td style="padding:8px 10px;color:var(--text-muted);font-weight:600;width:40%;font-size:11px;text-transform:uppercase;">${r[0]}</td><td style="padding:8px 10px;font-weight:500;">${r[1]}</td></tr>`).join('') + '</table>';
+  $('modalInfoProducto').style.display = 'flex';
+}
+function cerrarModalInfo() { $('modalInfoProducto').style.display = 'none'; }
+
+function agregarItemAlCarrito(index) {
+  var p = memoriaProductosPOS[index]; if (Number(p.stock) <= 0) return alert('Sin existencias.');
+  var existe = carritoPOS.find(item => item.sku === p.sku);
+  if (existe) { if (existe.cantidad + 1 > p.stock) return alert('Límite superado.'); existe.cantidad++; } 
+  else { carritoPOS.push({ sku: p.sku, nombre: p.nombre, precio: p.precioFinal, cantidad: 1, maxStock: p.stock, descuento: 0 }); }
+  $('panelFacturacionPOS').style.display = 'block'; renderizarCarritoPOS();
 }
 
-function buscarProductosEnBase(crit) {
-  var ss = garantizarEstructura(), sheet = ss.getSheetByName('Inventario');
-  if (!sheet) return [];
+function renderizarCarritoPOS() {
+  var total = 0;
+  $('tbodyCartPOS').innerHTML = carritoPOS.map(function (i, idx) {
+    var sub = (i.precio * i.cantidad) * (1 - (i.descuento / 100)); total += sub;
+    return `<tr><td><code style="font-size:11px;">${i.sku}</code></td><td><b>${i.nombre}</b></td><td>$${i.precio}</td><td>${i.maxStock}</td><td><input type="number" class="form-control-input" value="${i.cantidad}" min="1" max="${i.maxStock}" style="width:52px;padding:4px;" onchange="alterarCantidadCarrito(${idx}, this.value)"></td><td><input type="number" class="form-control-input" value="${i.descuento}" min="0" max="100" style="width:52px;padding:4px;" onchange="alterarDescuentoCarrito(${idx}, this.value)"></td><td style="font-weight:600;color:var(--clr-primary);">$${sub.toFixed(2)}</td><td><button class="btn btn-danger btn-sm" onclick="quitarDelCarrito(${idx})">✕</button></td></tr>`;
+  }).join('');
+  $('txtTotalCart').textContent = '$' + total.toFixed(2);
+}
+
+function alterarCantidadCarrito(idx, v) { var q = Math.floor(Number(v)), i = carritoPOS[idx]; i.cantidad = (q > i.maxStock) ? i.maxStock : (q < 1 ? 1 : q); renderizarCarritoPOS(); }
+function alterarDescuentoCarrito(idx, v) { var d = Number(v); carritoPOS[idx].descuento = (d < 0 ? 0 : (d > 100 ? 100 : d)); renderizarCarritoPOS(); }
+function quitarDelCarrito(idx) { carritoPOS.splice(idx, 1); if (carritoPOS.length === 0) $('panelFacturacionPOS').style.display = 'none'; renderizarCarritoPOS(); }
+
+async function sincronizarClientesPOS() {
+  try {
+    const arr = await apiFetch('obtenerClientes', {}, 'GET');
+    var sel = $('selClienteFactura'); sel.innerHTML = '<option value="000000000" data-nombre="Usuario de vitrina">🛒 Usuario de vitrina</option>';
+    var dAct = arr?.filter(c => c.estado !== 'Bloqueado') || [], dBloq = arr?.filter(c => c.estado === 'Bloqueado') || [];
+    if (dAct.length > 0) { sel.innerHTML += '<option value="EXISTENTE" disabled>— Autorizados —</option>' + dAct.map(c => `<option value="${c.documento}" data-nombre="${c.nombre}" data-estado="${c.estado}">${c.nombre} (${c.documento})</option>`).join(''); }
+    if (dBloq.length > 0) { sel.innerHTML += '<option value="BLOQUEADOS" disabled>— BLOQUEADOS —</option>' + dBloq.map(c => `<option value="${c.documento}" disabled>${c.nombre} (${c.documento}) ❌</option>`).join(''); }
+    if (['Súper Administrador', 'Administrador'].indexOf(rolActual) !== -1) sel.innerHTML += '<option value="NUEVO">➕ Nuevo Cliente...</option>';
+  } catch (error) { console.error("Error cargando clientes POS"); }
+}
+
+function alternarBloqueNuevoCliente() { $('subFormClienteNuevo').style.display = ($('selClienteFactura').value === 'NUEVO') ? 'block' : 'none'; }
+
+async function guardarClientePOS() {
+  var c = { nombre: gv('fcNombre'), tipoDoc: gv('fcTipoDoc'), documento: gv('fcDoc'), telefono: gv('fcTel'), direccion: gv('fcDir'), correo: gv('fcCorreo') };
+  if (!c.nombre || !c.documento) return alert('Nombre y Doc obligatorios.');
+  try { await apiFetch('registrarCliente', { cliente: c }); sincronizarClientesPOS(); $('subFormClienteNuevo').style.display = 'none'; } catch (error) { alert("Error al guardar cliente: " + error.message); }
+}
+
+async function finalizarTicketVenta() {
+  if (carritoPOS.length === 0) return alert('Carrito vacío.');
+  var sel = $('selClienteFactura'), tPago = $('selTipoPago').value, total = $('txtTotalCart').textContent.replace('$', '');
+  if (['EXISTENTE', 'NUEVO', 'BLOQUEADOS'].indexOf(sel.value) !== -1) return alert('Selecciona cliente.');
+  if (tPago === 'Fiar' && sel.value === '000000000') return alert('❌ No se fía a Usuario vitrina.');
+  var d = { carrito: carritoPOS, clienteNombre: sel.value === '000000000' ? 'Usuario de vitrina' : sel.options[sel.selectedIndex].getAttribute('data-nombre'), clienteDoc: sel.value, total: total, operador: usuarioActual, tipoPago: tPago, rolOperador: rolActual };
+  try {
+    const r = await apiFetch('registrarVenta', { venta: d });
+    var html = `<div style="font-family:monospace;padding:15px;text-align:center;"><h2 style="margin-bottom:5px;">INVENTARIO</h2><p style="text-align:left;font-size:13px;"><b>Ticket:</b> ${r.ticket}<br><b>Fecha:</b> ${new Date().toLocaleString()}<br><b>Op:</b> ${usuarioActual}<br><b>Tipo:</b> ${tPago}<br><b>Cli:</b> ${d.clienteNombre}</p><hr><table style="width:100%;text-align:left;font-size:13px;">`;
+    html += carritoPOS.map(i => { var sub = (i.precio * i.cantidad) * (1 - (i.descuento / 100)); return `<tr style="border-bottom:1px dashed #ccc;"><td>${i.nombre} x${i.cantidad}</td><td style="text-align:right;">$${sub.toFixed(2)}</td></tr>`; }).join('');
+    html += `</table><hr><h3 style="text-align:right;">TOTAL: $${total}</h3>${(tPago==='Fiar'?'<p style="text-align:center;font-size:11px;color:red;">*** DEUDA PENDIENTE ***</p>':'')}</div>`;
+    carritoPOS = []; $('panelFacturacionPOS').style.display = 'none'; 
+    if ($('txtBuscarPOS').value) ejecutarBusquedaPOS(); 
+    if (['Súper Administrador', 'Administrador'].indexOf(rolActual) !== -1) cargarVentasParaReportes();
+    prepararImpresion(html);
+  } catch (error) { alert('❌ Error: ' + error.message); }
+}
+
+async function cargarVentasParaReportes() { 
+  try { const res = await apiFetch('obtenerReporteVentas', {}, 'GET'); memoriaVentas = res || []; procesarReporteHistorico('dia'); } catch (error) { console.error("Error al cargar reportes."); }
+}
+
+function procesarReporteHistorico(filtro) {
+  var vB = 0, rE = 0, fC = 0, cR = 0, gN = 0;
   
-  var datos = sheet.getDataRange().getValues();
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var idxCaducidad = headers.indexOf("Fecha de Caducidad");
-  var res = [];
+  var hoyReal = new Date();
+  var hoyDesplazado = new Date(hoyReal.getTime() - (11 * 60 * 60 * 1000));
+  var dH = hoyDesplazado.getDate(), mH = hoyDesplazado.getMonth(), yH = hoyDesplazado.getFullYear();
   
-  var terminos = crit.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\s+/);
-  
-  for (var i = 1; i < datos.length; i++) {
-    var sku = String(datos[i][0]).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    var nombre = String(datos[i][1]).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    var codProd = String(datos[i][11]).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  memoriaVentas.forEach(v => {
+    if (!v.fecha) return; 
     
-    var textoBuscable = sku + " " + nombre + " " + codProd;
+    var fReal = new Date(v.fecha);
+    var f = new Date(fReal.getTime() - (11 * 60 * 60 * 1000));
+    var d = f.getDate(), m = f.getMonth(), y = f.getFullYear(), apl = false;
     
-    var coincide = terminos.every(function(t) { 
-      return textoBuscable.indexOf(t) !== -1; 
-    });
+    if (filtro === 'dia' && d === dH && m === mH && y === yH) apl = true;
+    else if (filtro === 'mes' && m === mH && y === yH) apl = true;
+    else if (filtro === 'ano' && y === yH) apl = true;
+    else if (filtro === 'semana') { 
+      var ini = new Date(hoyDesplazado); 
+      ini.setDate(ini.getDate() - ini.getDay()); 
+      ini.setHours(0,0,0,0); 
+      var fin = new Date(ini); 
+      fin.setDate(fin.getDate() + 6); 
+      fin.setHours(23,59,59,999); 
+      if (f >= ini && f <= fin) apl = true; 
+    }
     
-    if (coincide) {
-      var fCad = (idxCaducidad !== -1 && datos[i][idxCaducidad]) ? datos[i][idxCaducidad] : ''; 
-      if (fCad instanceof Date) { fCad = fCad.toLocaleDateString(); }
-      res.push({ sku: datos[i][0], nombre: datos[i][1], categoria: datos[i][2], descripcion: datos[i][3], costoCompra: datos[i][4], precioVenta: datos[i][5], stock: datos[i][6], proveedor: datos[i][8], codigoProducto: datos[i][11], precioFinal: datos[i][17] || datos[i][5], fechaCaducidad: fCad });
+    if (apl) { 
+      vB += v.total; cR += v.cost; gN += v.ganancia; 
+      if (v.tipoPago === 'Fiar' && v.estadoPago === 'Pendiente') fC += v.total; 
+      else rE += v.total; 
     }
-  }
-  return res;
-}
-
-function obtenerDatosDashboard() {
-  var ss = garantizarEstructura(), sheetInv = ss.getSheetByName('Inventario'), sheetVentas = ss.getSheetByName('Ventas');
-  var datosInv = sheetInv.getDataRange().getValues();
-  var datosVentas = sheetVentas.getDataRange().getValues();
-  var alertas = [], ventasHoy = {};
-  
-  for (var i = 1; i < datosInv.length; i++) {
-    if (!datosInv[i][0]) continue;
-    var nombre = String(datosInv[i][1]), stock = Number(datosInv[i][6]) || 0;
-    if (stock < 5) alertas.push({ producto: nombre, stock: stock });
-  }
-
-  var hoyStr = new Date().toDateString();
-  for (var j = 1; j < datosVentas.length; j++) {
-    if (!datosVentas[j][1]) continue;
-    var fechaVenta = new Date(datosVentas[j][1]);
-    
-    if (fechaVenta.toDateString() === hoyStr) {
-      var detalles = String(datosVentas[j][4]).split(', ');
-      detalles.forEach(function(det) {
-        var match = det.match(/(.*) \(x(\d+)\)/);
-        if (match) {
-          var prod = match[1].trim(), cant = Number(match[2]);
-          ventasHoy[prod] = (ventasHoy[prod] || 0) + cant;
-        }
-      });
-    }
-  }
-
-  var masVendidos = [];
-  for (var p in ventasHoy) {
-    if (ventasHoy[p] > 10) {
-      masVendidos.push({ producto: p, cantidad: ventasHoy[p] });
-    }
-  }
-  masVendidos.sort((a, b) => b.cantidad - a.cantidad);
-
-  return { alertas: alertas.slice(0, 6), masVendidos: masVendidos.slice(0, 6) };
-}
-
-function obtenerClientes() {
-  var datos = garantizarEstructura().getSheetByName('Clientes').getDataRange().getValues(), l = [];
-  for (var i = 1; i < datos.length; i++) {
-    if(datos[i][0]) l.push({ id: datos[i][0], nombre: datos[i][1], tipoDoc: datos[i][2], documento: datos[i][3], telefono: datos[i][4], direccion: datos[i][5], correo: datos[i][6], estado: datos[i][8] || 'Activo' });
-  }
-  return l;
-}
-
-function registrarNuevoCliente(c) {
-  var sheet = garantizarEstructura().getSheetByName('Clientes'), nId = 'CLI' + String(sheet.getLastRow()).padStart(4, '0');
-  sheet.appendRow([nId, c.nombre, c.tipoDoc, c.documento, c.telefono, c.direccion, c.correo, new Date(), 'Activo']); 
-  return { success: true, id: nId, nombre: c.nombre };
-}
-
-function cambiarEstadoClienteCartera(docCliente, nuevoEstado, operador) {
-  var sheet = garantizarEstructura().getSheetByName('Clientes'), datos = sheet.getDataRange().getValues();
-  for (var i = 1; i < datos.length; i++) {
-    if (String(datos[i][3]).trim() === String(docCliente).trim()) {
-      sheet.getRange(i + 1, 9).setValue(nuevoEstado);
-      registrarActividad(operador, 'Cambio Estado Cliente', 'Documento: ' + docCliente + ' es ' + nuevoEstado);
-      return { success: true };
-    }
-  }
-  return { success: false, error: 'No se encontró al cliente.' };
-}
-
-function registrarVentaPOS(dv) {
-  var ss = garantizarEstructura(), hProd = ss.getSheetByName('Inventario'), hVent = ss.getSheetByName('Ventas');
-  var db = hProd.getDataRange().getValues(), det = [], costoBaseTotal = 0, tipoPago = dv.tipoPago || 'Efectivo', estadoPago = (tipoPago === 'Fiar') ? 'Pendiente' : 'Pagado';
-  
-  if (tipoPago === 'Fiar') {
-    if (dv.clienteDoc === '000000000') throw new Error("No se puede fiar a un 'Usuario de vitrina'.");
-    var dbCli = ss.getSheetByName('Clientes').getDataRange().getValues(), clienteBloqueado = false;
-    for (var c = 1; c < dbCli.length; c++) {
-      if (String(dbCli[c][3]).trim() === String(dv.clienteDoc).trim() && String(dbCli[c][8]).trim() === 'Bloqueado') { clienteBloqueado = true; break; }
-    }
-    if (clienteBloqueado) throw new Error("Este cliente se encuentra BLOQUEADO para créditos.");
-  }
-  
-  dv.carrito.forEach(function(item) {
-    for (var j = 1; j < db.length; j++) {
-      if (String(db[j][0]).trim() === String(item.sku).trim()) {
-        var nCant = Number(db[j][6]) - Number(item.cantidad);
-        if (nCant < 0) throw new Error("Stock insuficiente: " + item.nombre);
-        hProd.getRange(j + 1, 7).setValue(nCant);
-        hProd.getRange(j + 1, 15).setValue((Number(db[j][14]) || 0) + Number(item.cantidad));
-        hProd.getRange(j + 1, 8).setValue(Number(db[j][4]) * nCant); 
-        costoBaseTotal += ((Number(db[j][4]) || 0) * Number(item.cantidad));
-        break;
-      }
-    }
-    det.push(item.nombre + " (x" + item.cantidad + ")");
   });
   
-  var tk = 'TK' + String(hVent.getLastRow()).padStart(5, '0'), totalCobrado = Number(dv.total), gananciaNeta = totalCobrado - costoBaseTotal;
-  hVent.appendRow([tk, new Date(), dv.clienteNombre, dv.clienteDoc, det.join(', '), totalCobrado, dv.operador, costoBaseTotal, gananciaNeta, tipoPago, estadoPago]);
-  registrarActividad(dv.operador, 'Venta POS (' + tipoPago + ')', 'Ticket: ' + tk + ' | Estado: ' + estadoPago); 
-  return { success: true, ticket: tk };
-}
-
-function obtenerReporteVentas() {
-  var datos = garantizarEstructura().getSheetByName('Ventas').getDataRange().getValues(), ventas = [];
-  for (var i = 1; i < datos.length; i++) {
-    if (datos[i][0] && datos[i][1]) {
-      ventas.push({ 
-        fecha: (datos[i][1] instanceof Date) ? datos[i][1].getTime() : new Date(datos[i][1]).getTime(), 
-        total: Number(datos[i][5]) || 0, cost: Number(datos[i][7]) || 0, 
-        ganancia: Number(datos[i][8]) || 0, tipoPago: datos[i][9] || 'Efectivo', 
-        estadoPago: datos[i][10] || 'Pagado', detalles: String(datos[i][4]) 
-      });
-    }
-  }
-  return ventas;
-}
-
-function obtenerCarteraClientes() {
-  var ss = garantizarEstructura(), datos = ss.getSheetByName('Ventas').getDataRange().getValues(), dbCli = ss.getSheetByName('Clientes').getDataRange().getValues(), estadosClientes = {}, deudores = {};
-  for (var c = 1; c < dbCli.length; c++) if(dbCli[c][3]) estadosClientes[String(dbCli[c][3])] = dbCli[c][8] || 'Activo';
+  var nom = { dia: 'HOY', semana: 'ESTA SEMANA', mes: 'ESTE MES', ano: 'ESTE AÑO' };
+  $('lblFiltroActual').textContent = 'PERÍODO: ' + (nom[filtro] || filtro.toUpperCase());
+  $('txtTotalVentasReporte').textContent = '$' + vB.toFixed(2); 
+  $('txtTotalReporte').textContent = '$' + rE.toFixed(2); 
+  $('txtFiadoReporte').textContent = '$' + fC.toFixed(2); 
+  $('txtCostoReporte').textContent = '$' + cR.toFixed(2); 
+  $('txtGananciaReporte').textContent = '$' + gN.toFixed(2);
   
-  for (var i = 1; i < datos.length; i++) {
-    if ((datos[i][9] || 'Efectivo') === 'Fiar' && (datos[i][10] || 'Pagado') === 'Pendiente') {
-      var doc = String(datos[i][3]), total = Number(datos[i][5]) || 0;
-      if (!deudores[doc]) deudores[doc] = { documento: doc, nombre: String(datos[i][2]), deudaTotal: 0, estado: estadosClientes[doc] || 'Activo', tickets: [] };
-      deudores[doc].deudaTotal += total; 
-      deudores[doc].tickets.push({ ticket: String(datos[i][0]), fecha: (datos[i][1] instanceof Date) ? datos[i][1].toLocaleString() : new Date(datos[i][1]).toLocaleString(), monto: total });
-    }
+  if (['Súper Administrador', 'Administrador'].indexOf(rolActual) !== -1) {
+    $('cajaDesgloseReporte').style.display = 'grid';
   }
-  return Object.keys(deudores).map(k => deudores[k]);
 }
 
-function pagarTicketCartera(ticketId, operador) {
-  var sheet = garantizarEstructura().getSheetByName('Ventas'), datos = sheet.getDataRange().getValues();
-  for (var i = 1; i < datos.length; i++) {
-    if (String(datos[i][0]).trim() === String(ticketId).trim()) {
-      sheet.getRange(i + 1, 11).setValue('Pagado');
-      registrarActividad(operador, 'Abono Cartera', 'Ticket ' + ticketId + ' liquidado en efectivo.');
-      return { success: true };
-    }
-  }
-  return { success: false, error: 'Ticket no encontrado.' };
-}
-
-function registrarActividad(u, a, d) { 
-  try { 
-    var h = SpreadsheetApp.openById(idArchivo).getSheetByName('Registro de Actividades'); 
-    if (h) h.appendRow([new Date(), u, a, d]); 
-  } catch (e) {} 
-}
-
-function guardarInformeEnDrive(html, tipo, mes, anio) {
+async function cargarCarteraModulo() {
+  var tbody = $('tbodyCarteraClientes'); tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted);">Consultando...</td></tr>';
   try {
-    var archivoBd = DriveApp.getFileById(idArchivo);
-    var carpetaRaiz = archivoBd.getParents().next();
-    
-    var carpetasAnio = carpetaRaiz.getFoldersByName(String(anio));
-    var carpetaAnio = carpetasAnio.hasNext() ? carpetasAnio.next() : carpetaRaiz.createFolder(String(anio));
-    
-    var nombreArchivo = tipo + " - " + mes + " - " + anio + ".pdf";
-    
-    var archivosExistentes = carpetaAnio.getFilesByName(nombreArchivo);
-    while (archivosExistentes.hasNext()) {
-      archivosExistentes.next().setTrashed(true);
+    const arr = await apiFetch('obtenerCartera', {}, 'GET'); memoriaCartera = arr || []; var globalCartera = 0;
+    if (memoriaCartera.length === 0) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;">🎉 No existen saldos en cartera.</td></tr>'; $('txtTotalCarteraGlobal').textContent = '$0.00'; return; }
+    tbody.innerHTML = memoriaCartera.map((c, index) => {
+      globalCartera += c.deudaTotal; var bloq = c.estado === 'Bloqueado';
+      var btnBloqueo = bloq ? `<button class="btn btn-success btn-sm" onclick="cambiarEstadoBloqueo('${c.documento}','Activo')">✅ Desbloquear</button>` : `<button class="btn btn-danger btn-sm" onclick="cambiarEstadoBloqueo('${c.documento}','Bloqueado')">🚫 Bloquear</button>`;
+      return `<tr><td><b>${c.documento}</b></td><td>${c.nombre} ${bloq ? '<br><span style="color:var(--clr-danger);font-size:10px;font-weight:700;">[BLOQUEADO]</span>' : ''}</td><td style="color:var(--clr-danger);font-weight:700;font-family:var(--font-mono);">$${c.deudaTotal.toFixed(2)}</td><td><div style="display:flex;gap:5px;flex-wrap:wrap;"><button class="btn btn-info btn-sm" onclick="verDetalleCarteraCliente(${index})">🔎 Detalle</button><button class="btn btn-purple btn-sm" onclick="imprimirEstadoCuentaIndividual(${index})">🖨️ Imprimir</button>${btnBloqueo}</div></td></tr>`;
+    }).join('');
+    $('txtTotalCarteraGlobal').textContent = '$' + globalCartera.toFixed(2);
+  } catch (error) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--clr-danger);">Error de conexión.</td></tr>'; }
+}
+
+function verDetalleCarteraCliente(idx) {
+  var c = memoriaCartera[idx]; $('modalInfoTitulo').textContent = '📋 Tickets: ' + c.nombre;
+  var html = `<div style="font-size:13px;margin-bottom:12px;"><b>Doc:</b> ${c.documento}<br><b>Deuda:</b> <b style="color:var(--clr-danger);font-family:var(--font-mono);">$${c.deudaTotal.toFixed(2)}</b></div><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead style="background:var(--bg-input);"><tr><th style="padding:8px;text-align:left;">Ticket</th><th style="padding:8px;">Fecha</th><th style="padding:8px;">Valor</th><th style="padding:8px;">Acción</th></tr></thead><tbody>`;
+  html += c.tickets.map(t => `<tr style="border-bottom:1px solid var(--border-subtle);"><td style="padding:8px;"><b>${t.ticket}</b></td><td style="padding:8px;color:var(--text-muted);">${t.fecha}</td><td style="padding:8px;font-weight:600;font-family:var(--font-mono);">$${t.monto.toFixed(2)}</td><td style="padding:8px;"><button class="btn btn-success btn-sm" onclick="procesarAbonoTotalTicket('${t.ticket}')">✅ Recaudar</button></td></tr>`).join('');
+  $('modalDetallesCuerpo').innerHTML = html + '</tbody></table>'; $('modalInfoProducto').style.display = 'flex';
+}
+
+async function procesarAbonoTotalTicket(tkId) {
+  if (!confirm('¿Registrar el recaudo de ' + tkId + '?')) return;
+  try { await apiFetch('pagarTicket', { ticketId: tkId, operador: usuarioActual }); alert('¡Recaudo exitoso!'); cerrarModalInfo(); cargarCarteraModulo(); cargarVentasParaReportes(); } catch (error) { alert("Error: " + error.message); }
+}
+
+async function cambiarEstadoBloqueo(doc, estado) {
+  if (!confirm(`¿Seguro que deseas ${estado === 'Bloqueado' ? 'BLOQUEAR' : 'DESBLOQUEAR'} a este cliente?`)) return;
+  try { await apiFetch('cambiarEstadoCliente', { docCliente: doc, nuevoEstado: estado, operador: usuarioActual }); cargarCarteraModulo(); sincronizarClientesPOS(); } catch (error) { alert("Error: " + error.message); }
+}
+
+async function cambiarEstadoBloqueoDirecto(doc, estado) {
+  if (!confirm(`¿Establecer estado del fiador como ${estado === 'Bloqueado' ? 'BLOQUEADO' : 'ACTIVO'}?`)) return;
+  try { await apiFetch('cambiarEstadoCliente', { docCliente: doc, nuevoEstado: estado, operador: usuarioActual }); abrirModalFiadores(); sincronizarClientesPOS(); if ($('areaCartera').style.display !== 'none') cargarCarteraModulo(); } catch (error) { alert("Error: " + error.message); }
+}
+
+function imprimirEstadoCuentaIndividual(idx) {
+  var c = memoriaCartera[idx];
+  var html = `<div style="font-family:sans-serif;padding:15px;color:#000;background:#fff;"><h2 style="text-align:center;margin-bottom:5px;">BASE DE DATOS</h2><h3 style="text-align:center;margin-top:0;">ESTADO DE CUENTA</h3><hr><p><b>Cliente:</b> ${c.nombre}<br><b>Doc:</b> ${c.documento}<br><b>Fecha:</b> ${new Date().toLocaleString()}</p><hr><h4>TICKETS</h4><table style="width:100%;text-align:left;border-collapse:collapse;font-size:12px;"><tr style="border-bottom:2px solid #000;height:30px;"><th>Ticket</th><th>Fecha</th><th>Valor</th></tr>`;
+  html += c.tickets.map(t => `<tr style="border-bottom:1px dashed #ccc;height:28px;"><td><b>${t.ticket}</b></td><td>${t.fecha}</td><td>$${t.monto.toFixed(2)}</td></tr>`).join('');
+  prepararImpresion(html + `</table><hr><h3 style="text-align:right;">TOTAL: $${c.deudaTotal.toFixed(2)}</h3></div>`);
+}
+
+async function abrirModalFiadores() {
+  var tbody = $('tbodyTodosLosFiadores'); tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">Cargando...</td></tr>';
+  $('modalListaFiadores').style.display = 'flex';
+  try {
+    const arr = await apiFetch('obtenerClientes', {}, 'GET');
+    if (arr.length === 0) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;">No hay fiadores registrados.</td></tr>'; return; }
+    tbody.innerHTML = arr.map(c => {
+      var bloq = c.estado === 'Bloqueado';
+      var badgeEst = bloq ? '<span style="color:var(--clr-danger);font-weight:700;">🚫 Bloqueado</span>' : '<span style="color:var(--clr-success);font-weight:700;">✅ Activo</span>';
+      var btnAcc = bloq ? `<button class="btn btn-success btn-sm" onclick="cambiarEstadoBloqueoDirecto('${c.documento}','Activo')">✅ Activar</button>` : `<button class="btn btn-danger btn-sm" onclick="cambiarEstadoBloqueoDirecto('${c.documento}','Bloqueado')">🚫 Bloquear</button>`;
+      return `<tr><td><b>${c.documento}</b></td><td>${c.nombre}</td><td>${badgeEst}</td><td>${btnAcc}</td></tr>`;
+    }).join('');
+  } catch (error) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Error al cargar.</td></tr>'; }
+}
+function cerrarModalFiadores() { $('modalListaFiadores').style.display = 'none'; }
+
+function abrirModalNuevoDeudor() {
+  if (['Súper Administrador', 'Administrador'].indexOf(rolActual) === -1) return alert('Acción denegada.');
+  ['ndNombre', 'ndDoc', 'ndTel', 'ndDir', 'ndCorreo'].forEach(id => $(id).value = '');
+  $('modalNuevoDeudor').style.display = 'flex';
+}
+function cerrarModalNuevoDeudor() { $('modalNuevoDeudor').style.display = 'none'; }
+
+async function guardarNuevoDeudorDesdeCartera() {
+  var c = { nombre: gv('ndNombre'), tipoDoc: gv('ndTipoDoc'), documento: gv('ndDoc'), telefono: gv('ndTel'), direccion: gv('ndDir'), correo: gv('ndCorreo') };
+  if (!c.nombre || !c.documento) return alert('Nombre y Documento son requeridos.');
+  try { await apiFetch('registrarDeudor', { cliente: c, rolSolicitante: rolActual }); alert('Deudor registrado exitosamente.'); cerrarModalNuevoDeudor(); cargarCarteraModulo(); sincronizarClientesPOS(); } catch (error) { alert("Error: " + error.message); }
+}
+
+function abrirModalReabastecer() { ['txtBuscarReabastecer','txtCantReabastecer'].forEach(id => $(id).value = ''); $('resReabastecer').style.display = 'none'; $('btnConfirmarReab').style.display = 'none'; $('modalReabastecer').style.display = 'flex'; }
+function cerrarModalReabastecer() { $('modalReabastecer').style.display = 'none'; }
+
+async function buscarParaReabastecer() {
+  var txt = $('txtBuscarReabastecer').value; if (!txt) return alert('Escribe algo para buscar.');
+  var btn = $('btnConfirmarReab'); btn.textContent = 'Buscando...'; btn.style.display = 'inline-flex'; btn.disabled = true;
+  try {
+    const arr = await apiFetch('buscarProductos', { crit: txt }, 'GET');
+    tempBusquedaReab = arr || []; var sel = $('selArticuloReabastecer'); sel.innerHTML = '<option value="">-- Selecciona --</option>'; btn.textContent = 'Actualizar Stock';
+    if (tempBusquedaReab.length === 0) { btn.style.display = 'none'; return alert('Sin coincidencias.'); }
+    sel.innerHTML += tempBusquedaReab.map((p, i) => `<option value="${i}">${p.sku} — ${p.nombre}</option>`).join('');
+    $('resReabastecer').style.display = 'block'; btn.disabled = false; mostrarStockActualReabastecer();
+  } catch (error) { alert("Error de búsqueda"); btn.style.display = 'none'; }
+}
+
+function mostrarStockActualReabastecer() { var idx = $('selArticuloReabastecer').value; $('lblStockActualReab').textContent = idx === '' ? '0' : tempBusquedaReab[idx].stock; }
+
+async function confirmarReabastecimiento() {
+  var idx = $('selArticuloReabastecer').value, cant = $('txtCantReabastecer').value;
+  if (idx === '' || !cant || Number(cant) <= 0) return alert('Selecciona un artículo y cantidad.');
+  var p = tempBusquedaReab[idx], btn = $('btnConfirmarReab'); btn.textContent = 'Actualizando...'; btn.disabled = true;
+  try {
+    const r = await apiFetch('actualizarStock', { sku: p.sku, cantidad: cant, operador: usuarioActual });
+    btn.disabled = false; btn.textContent = 'Actualizar Stock';
+    if (r.success) { 
+      alert('✅ Stock actualizado: "' + p.nombre + '" -> ' + r.nuevoStock); 
+      cerrarModalReabastecer(); 
+      if ($('areaPOS').style.display !== 'none' && $('txtBuscarPOS').value) ejecutarBusquedaPOS(); 
+      cargarWidgetsDashboard(); 
+    } else alert(r.error);
+  } catch (error) { btn.disabled = false; btn.textContent = 'Actualizar Stock'; alert("Error de conexión: " + error.message); }
+}
+
+function switchTab(n) { [1, 2].forEach(i => { $('t'+i).classList.toggle('active', i===n); $('tp'+i).classList.toggle('active', i===n); }); if (n === 2) cargarSolicitudes(); }
+
+async function cargarSolicitudes() {
+  $('authList').innerHTML = '<div style="text-align:center;padding:16px;">Cargando...</div>';
+  try {
+    const arr = await apiFetch('obtenerUsuarios', { rol: rolActual }, 'GET');
+    if (!arr || arr.length === 0) { $('authList').innerHTML = '<div style="text-align:center;padding:16px;">Sin usuarios.</div>'; return; }
+    $('authList').innerHTML = arr.map(u => {
+      var rD = rolActual === 'Súper Administrador' ? ['Cliente', 'Usuario', 'Vendedor', 'Administrador'] : ['Cliente', 'Usuario', 'Vendedor'];
+      var sel = `<select id="sel-rol-${u.id}" class="form-control-input" style="flex:1;padding:6px;">` + rD.map(r => `<option value="${r}" ${u.rol===r?'selected':''}>${r}</option>`).join('') + `</select>`;
+      var col = { Aprobado: 'var(--clr-success)', Pendiente: 'var(--clr-warning)', Bloqueado: 'var(--clr-danger)', Pausado: '#94a3b8', Eliminado: '#64748b' };
+      var inC = u.estado !== 'Aprobado' ? `<div style="display:flex;gap:4px;margin-top:4px;"><input type="text" id="pwd-prov-${u.id}" class="form-control-input" placeholder="Clave" style="flex:1;padding:4px;"><button class="btn btn-ghost btn-sm" onclick="generarClaveAleatoria('${u.id}')">🎲</button></div>` : '';
+      var bA = u.estado !== 'Aprobado' ? `<button class="btn btn-success btn-sm" style="flex:1;" id="btn-apr-${u.id}" onclick="aprobarConClaveProvisional('${u.id}')">✅ Apr</button>` : '';
+      var bP = `<button class="btn btn-info btn-sm" style="flex:1;" onclick="accEstado('${u.id}','${u.estado==='Pausado'?'Aprobado':'Pausado'}')">${u.estado==='Pausado'?'▶':'⏸'}</button>`;
+      var bB = `<button class="btn btn-danger btn-sm" style="flex:1;" onclick="accEstado('${u.id}','${u.estado==='Bloqueado'?'Aprobado':'Bloqueado'}')">${u.estado==='Bloqueado'?'🔓':'🚫'}</button>`;
+      var bE = (rolActual === 'Súper Administrador' || u.rol === 'Cliente') ? `<button class="btn btn-danger btn-sm" onclick="accEliminar('${u.id}')">🗑</button>` : '';
+      return `<div class="user-approval-card" style="background:var(--bg-input); border:1px solid var(--border-color); padding:12px; border-radius:var(--radius-md);"><div><b style="color:var(--clr-primary);">${u.nombre}</b><br><span style="font-size:11px;color:var(--text-main);">${u.correo}</span><br><span style="font-size:10px;font-weight:600;color:${col[u.estado]||'gray'};">${u.estado}</span></div>${inC}<div style="display:flex;gap:6px;margin-top:8px;">${sel}<button class="btn btn-primary btn-sm" onclick="accCargo('${u.id}')">💾</button></div><div class="action-buttons-grid" style="display:flex; gap:4px; margin-top:8px;">${bA}${bP}${bB}${bE}</div></div>`;
+    }).join('');
+  } catch (error) { $('authList').innerHTML = '<div style="text-align:center;padding:16px;">Error de servidor.</div>'; }
+}
+
+function generarClaveAleatoria(id) {
+  var c = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#*", p = "A1!";
+  for (var i = 0; i < 6; i++) p += c.charAt(Math.floor(Math.random() * c.length));
+  $('pwd-prov-' + id).value = p;
+}
+
+async function aprobarConClaveProvisional(id) {
+  var pwd = $('pwd-prov-' + id).value.trim(); if (!pwd || pwd.length < 8) return alert('Falta clave (mín. 8 chars).');
+  $('btn-apr-' + id).disabled = true; 
+  try { await apiFetch('aprobarUsuario', { userId: id, password: pwd, rolSolicitante: rolActual }); alert('Aprobado.'); cargarSolicitudes(); } catch (error) { alert(error.message); $('btn-apr-'+id).disabled = false; }
+}
+
+async function accCargo(id) { try { await apiFetch('modificarUsuario', { userId: id, col: 5, val: $('sel-rol-'+id).value, accionDesc: 'Cargo', rolSolicitante: rolActual }); cargarSolicitudes(); } catch (error) { alert(error.message); } }
+async function accEstado(id, est) { try { await apiFetch('modificarUsuario', { userId: id, col: 7, val: est, accionDesc: 'Estado', rolSolicitante: rolActual }); cargarSolicitudes(); } catch (error) { alert(error.message); } }
+async function accEliminar(id) { if (confirm('¿Eliminar definitivamente?')) { try { await apiFetch('eliminarUsuario', { userId: id, rolSolicitante: rolActual }); cargarSolicitudes(); } catch (error) { alert(error.message); } } }
+
+// ============================================================================
+// GENERACIÓN DE REPORTES A4 Y PDFs DRIVE
+// ============================================================================
+
+async function generarReporteConsolidado() {
+  try {
+    const inventario = await apiFetch('buscarProductos', { crit: '' }, 'GET');
+    let html = construirPlantillaReporte('CONSOLIDADO DE INVENTARIO ACTUAL', inventario, 'consolidado');
+    prepararImpresion(html); 
+    guardarReporteEnDrive(html, 'Consolidado_Inventario', new Date()); 
+  } catch (error) {
+    alert("Error generando consolidado: " + error.message);
+  }
+}
+
+async function generarReporteVentasMes() {
+  try {
+    const ventas = await apiFetch('obtenerReporteVentas', {}, 'GET');
+    const hoy = new Date();
+    const mesActual = hoy.getMonth();
+    const anioActual = hoy.getFullYear();
+
+    let productosMes = {};
+    ventas.forEach(v => {
+      let f = new Date(v.fecha);
+      if (f.getMonth() === mesActual && f.getFullYear() === anioActual && v.detalles) {
+        let partes = v.detalles.split(', ');
+        partes.forEach(p => {
+          let match = p.match(/(.*) \(x(\d+)\)/);
+          if (match) {
+            let nombre = match[1].trim();
+            let cant = Number(match[2]);
+            productosMes[nombre] = (productosMes[nombre] || 0) + cant;
+          }
+        });
+      }
+    });
+
+    let arrVentas = Object.keys(productosMes).map(k => ({ nombre: k, cantidad: productosMes[k] }));
+    arrVentas.sort((a, b) => b.cantidad - a.cantidad);
+
+    const inventario = await apiFetch('buscarProductos', { crit: '' }, 'GET');
+    let invMap = {};
+    inventario.forEach(i => invMap[i.nombre] = i);
+
+    let dataReporte = arrVentas.map(item => {
+      let i = invMap[item.nombre] || {};
+      return { sku: i.sku || 'N/A', nombre: item.nombre, categoria: i.categoria || 'N/A', stock: i.stock || '0', proveedor: i.proveedor || 'N/A', ventas: item.cantidad };
+    });
+
+    let html = construirPlantillaReporte('INFORME DE VENTAS DEL MES', dataReporte, 'ventas');
+    prepararImpresion(html);
+    guardarReporteEnDrive(html, 'Informe_Ventas_Mensual', hoy);
+  } catch (error) {
+    alert("Error generando informe de ventas: " + error.message);
+  }
+}
+
+function construirPlantillaReporte(titulo, data, tipo) {
+  let d = new Date();
+  let formatoFecha = `${d.toLocaleDateString()} - ${d.toLocaleTimeString()}`;
+  
+  let html = `
+  <div style="font-family: Arial, sans-serif; padding: 20px; width: 100%; color: #000; background: #fff;">
+      <h2 style="text-align: center; margin-bottom: 5px;">BASE DE DATOS</h2>
+      <h3 style="text-align: center; margin-top: 0; color: #333;">${titulo}</h3>
+      <p style="text-align: center; font-size: 11px; color: #555;">Documento generado el: ${formatoFecha}</p>
+      
+      <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 20px;">
+          <thead>
+              <tr style="background-color: #f0f0f0; border-bottom: 2px solid #000; text-align: left;">
+                  <th style="padding: 8px; border: 1px solid #ddd;">Código/SKU</th>
+                  <th style="padding: 8px; border: 1px solid #ddd;">Nombre del Producto</th>
+                  <th style="padding: 8px; border: 1px solid #ddd;">Categoría</th>
+                  <th style="padding: 8px; border: 1px solid #ddd;">Stock Actual</th>
+                  <th style="padding: 8px; border: 1px solid #ddd;">Proveedor</th>
+                  <th style="padding: 8px; border: 1px solid #ddd;">${tipo === 'ventas' ? 'Cant. Vendida' : 'Factura'}</th>
+                  <th style="padding: 8px; border: 1px solid #ddd;">Caducidad</th>
+              </tr>
+          </thead>
+          <tbody>
+  `;
+  
+  data.forEach(item => {
+    html += `
+              <tr style="border-bottom: 1px solid #ddd;">
+                  <td style="padding: 8px; border: 1px solid #ddd;">${item.sku || item.codigoProducto || ''}</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">${item.nombre || ''}</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">${item.categoria || ''}</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${item.stock || '0'}</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">${item.proveedor || ''}</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">${tipo === 'ventas' ? (item.ventas || 0) : (item.numeroFactura || '')}</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">${item.fechaCaducidad || ''}</td>
+              </tr>
+    `;
+  });
+  
+  html += `
+          </tbody>
+      </table>
+      
+      <div style="margin-top: 40px; text-align: center; font-size: 10px; color: #555; border-top: 1px solid #aaa; padding-top: 10px;">
+          este formato es creado por el sistema de inventarios compukelc compukelc@hotmail.com cel. 3507973351 KELC
+      </div>
+  </div>
+  `;
+  return html;
+}
+
+async function guardarReporteEnDrive(html, tipo, dateObj) {
+  const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const mes = meses[dateObj.getMonth()];
+  const anio = dateObj.getFullYear();
+  
+  try {
+    const res = await apiFetch('guardarInformeDrive', { html: html, tipo: tipo, mes: mes, anio: anio });
+    if(res.success) {
+       console.log("PDF respaldado en Drive: ", res.url);
     }
-    
-    var blob = Utilities.newBlob(html, MimeType.HTML).getAs(MimeType.PDF);
-    blob.setName(nombreArchivo);
-    var nuevoPdf = carpetaAnio.createFile(blob);
-    
-    return { success: true, url: nuevoPdf.getUrl() };
-  } catch(e) {
-    return { success: false, error: e.message };
+  } catch (error) {
+    console.error("Fallo la creación del backup PDF en Drive:", error.message);
   }
 }
