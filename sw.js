@@ -37,11 +37,13 @@ self.addEventListener('activate', event => {
 
 // Peticiones: Intercepta y responde desde caché si aplica
 self.addEventListener('fetch', event => {
+  // Ignora peticiones POST (API de GAS) o de otros dominios para mantener la lógica de base de datos en vivo
   if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) return;
 
   event.respondWith(
     caches.match(event.request)
       .then(response => {
+        // Retorna la respuesta en caché si existe, si no, realiza la petición a la red
         return response || fetch(event.request);
       })
   );
