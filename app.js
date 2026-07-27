@@ -54,7 +54,9 @@ async function apiFetch(action, payload = {}, method = 'POST') {
 
 window.onload = async function () { 
   initLectorBarras();
-  await cargarBannerGlobal();
+  
+  const estadoPermitido = await cargarBannerGlobal();
+  if (!estadoPermitido) return; 
   
   const sesionGuardada = sessionStorage.getItem('sesionInventario');
   if (sesionGuardada) {
@@ -69,6 +71,22 @@ window.onload = async function () {
 async function cargarBannerGlobal() {
   try {
     const res = await apiFetch('verificarEstado', {}, 'GET');
+    
+    if (res && res.estado && res.estado !== 'Activo' && res.estado !== 'No Encontrado') {
+      document.body.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#0f0f11; color:#f4f4f5; text-align:center; padding:20px;">
+          <div style="font-size:70px; margin-bottom:20px;">🔒</div>
+          <h1 style="color:#d4af37; font-family:'Syne', sans-serif; font-size:36px; text-transform:uppercase; margin-bottom:15px;">
+            SISTEMA EN ${res.estado}
+          </h1>
+          <p style="color:#a1a1aa; font-family:'DM Sans', sans-serif; font-size:16px; max-width:500px; line-height:1.5;">
+            El acceso a la base de datos compukelc ha sido suspendido temporalmente desde la Matriz Central. Por favor, comunícate con el administrador.
+          </p>
+        </div>
+      `;
+      return false; 
+    }
+
     if (res && res.aviso) {
       const aviso = res.aviso;
       const htmlBanner = `
@@ -76,15 +94,17 @@ async function cargarBannerGlobal() {
           <div style="text-align: center; padding-right: 30px;">
             <span style="font-family: var(--font-brand); font-weight: 700; text-transform: uppercase; margin-right: 8px; background: rgba(0,0,0,0.2); padding: 3px 8px; border-radius: 4px;">${aviso.titulo}</span>
             ${aviso.mensaje}
-            ${aviso.url ? `<a href="${aviso.url}" target="_blank">Ver más detalles</a>` : ''}
+            ${aviso.url ? `<a href="${aviso.url}" target="_blank" style="color:inherit; text-decoration:underline; margin-left:10px;">Ver más detalles</a>` : ''}
           </div>
           <button class="aviso-close" onclick="document.getElementById('bannerPublicitario').style.display='none'">✕</button>
         </div>
       `;
       $('bannerPublicitarioContainer').innerHTML = htmlBanner;
     }
+    return true; 
   } catch (e) {
     console.log("No se pudo cargar el estado global/banner.");
+    return true; 
   }
 }
 
