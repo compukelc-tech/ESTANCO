@@ -70,21 +70,25 @@ window.onload = async function () {
 
 async function cargarBannerGlobal() {
   try {
-    const res = await apiFetch('verificarEstado', {}, 'GET');
+    const res = await apiFetch('verificarEstado', { t: Date.now() }, 'GET');
     
-    if (res && res.estado && res.estado !== 'Activo' && res.estado !== 'No Encontrado') {
-      document.body.innerHTML = `
-        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#0f0f11; color:#f4f4f5; text-align:center; padding:20px;">
-          <div style="font-size:70px; margin-bottom:20px;">🔒</div>
-          <h1 style="color:#d4af37; font-family:'Syne', sans-serif; font-size:36px; text-transform:uppercase; margin-bottom:15px;">
-            SISTEMA EN ${res.estado}
-          </h1>
-          <p style="color:#a1a1aa; font-family:'DM Sans', sans-serif; font-size:16px; max-width:500px; line-height:1.5;">
-            El acceso a la base de datos compukelc ha sido suspendido temporalmente desde la Matriz Central. Por favor, comunícate con el administrador.
-          </p>
-        </div>
-      `;
-      return false; 
+    if (res && res.estado) {
+      const estadoLimpio = String(res.estado).trim();
+      
+      if (estadoLimpio !== 'Activo' && estadoLimpio !== 'No Encontrado') {
+        document.body.innerHTML = `
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#0f0f11; color:#f4f4f5; text-align:center; padding:20px;">
+            <div style="font-size:70px; margin-bottom:20px;">🔒</div>
+            <h1 style="color:#d4af37; font-family:'Syne', sans-serif; font-size:36px; text-transform:uppercase; margin-bottom:15px;">
+              SISTEMA EN ${estadoLimpio}
+            </h1>
+            <p style="color:#a1a1aa; font-family:'DM Sans', sans-serif; font-size:16px; max-width:500px; line-height:1.5;">
+              El acceso a la base de datos ha sido suspendido temporalmente desde el panel de control.
+            </p>
+          </div>
+        `;
+        return false; 
+      }
     }
 
     if (res && res.aviso) {
